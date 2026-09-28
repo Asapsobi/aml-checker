@@ -1,0 +1,53 @@
+{
+ "data": [
+  {
+   "block_number": 86299832,
+   "block_timestamp": 1789571661000,
+   "caller_contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "event_index": 1,
+   "event_name": "DestroyedBlackFunds",
+   "result": {
+    "0": "0xc3f11bafbee0c8cfafd5a76bb10570e26dd36b40",
+    "1": "17534303971",
+    "_blackListedUser": "0xc3f11bafbee0c8cfafd5a76bb10570e26dd36b40",
+    "_balance": "17534303971"
+   },
+   "result_type": {
+    "_blackListedUser": "address",
+    "_balance": "uint256"
+   },
+   "event": "DestroyedBlackFunds(address indexed _blackListedUser, uint256 _balance)",
+   "transaction_id": "9f4753c51fc7053defc0a5ed51e72787de426da2e0a328f9734d352de8115c3b"
+  },
+  {
+   "block_number": 86299629,
+   "block_timestamp": 1789571052000,
+   "caller_contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "event_index": 1,
+   "event_name": "DestroyedBlackFunds",
+   "result": {
+    "0": "0x951006cb9a485f69977299ae607f683b4f6254de",
+    "1": "2149957226",
+    "_blackListedUser": "0x951006cb9a485f69977299ae607f683b4f6254de",
+    "_balance": "2149957226"
+   },
+   "result_type": {
+    "_blackListedUser": "address",
+    "_balance": "uint256"
+   },
+   "event": "DestroyedBlackFunds(address indexed _blackListedUser, uint256 _balance)",
+   "transaction_id": "3574507bc5046984296387af8d8018b1ed645d7969a361f1f590a5ea746c12b5"
+  }
+ ],
+ "success": true,
+ "meta": {
+  "at": 1790588342943,
+  "fingerprint": "8GJdxyqWT994xB8XhareJKeVq9MDoLGvgtWJJpwS5Q27c1zCAwTcB32w4FjCDerwvN19mJzyG4DtWZyW8SKdSEYz6K5n97xJJaFruck7sK8dr3c7P5Koz8awXdzPgTfsj6SEAYRTNtGNQi6DZXrN3nz8qf7MPvF7Gm57nAvpQTDnnR9negFavL4p2RLLoqvfRMa3CiKEXDb6DMQrWyyan61d1BqXNvWGRJ4gRNoKKtHMzqTbJaTXQyWhjg",
+  "links": {
+   "next": "https://api.trongrid.io/v1/contracts/TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t/events?event_name=DestroyedBlackFunds&limit=2&order_by=block_timestamp,desc&fingerprint=8GJdxyqWT994xB8XhareJKeVq9MDoLGvgtWJJpwS5Q27c1zCAwTcB32w4FjCDerwvN19mJzyG4DtWZyW8SKdSEYz6K5n97xJJaFruck7sK8dr3c7P5Koz8awXdzPgTfsj6SEAYRTNtGNQi6DZXrN3nz8qf7MPvF7Gm57nAvpQTDnnR9negFavL4p2RLLoqvfRMa3CiKEXDb6DMQrWyyan61d1BqXNvWGRJ4gRNoKKtHMzqTbJaTXQyWhjg"
+  },
+  "page_size": 2
+ }
+}

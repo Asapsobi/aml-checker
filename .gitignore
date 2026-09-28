@@ -1,0 +1,22 @@
+# API keys: never commit these.
+.env
+.env.*
+!.env.example
+
+# Python and tooling
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+
+# A local database, should one ever be created inside the repo
+*.db
+*.db-shm
+*.db-wal
