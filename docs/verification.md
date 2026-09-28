@@ -242,9 +242,9 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q3 | "Sanctions snapshot > 48 h old" (§11): is age measured from our last successful download, or from OFAC's publish date? OFAC does not publish daily (the current list is from 2026-09-23), so measuring from the publish date would make most checks INCOMPLETE. | Phase 1 | Decided |
 | Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | Open |
 | Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 | Open |
-| Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 | Open |
+| Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 | Decided |
 | Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 | Open |
-| Q8 | §10.1 says audit export is CSV and JSON, with "PDF in Phase 3", but §12 puts all export in Phase 3. Which is it? | Phase 1 | Open |
+| Q8 | §10.1 says audit export is CSV and JSON, with "PDF in Phase 3", but §12 puts all export in Phase 3. Which is it? | Phase 1 | Decided |
 
 ### Answers
 
@@ -265,6 +265,12 @@ proves too strict in practice, it can become a configurable REVIEW, like R-EXP-0
 OFAC's publish date is still stored and shown with every result, but it does not make the list
 stale. If OFAC cannot be reached for more than 48 hours, the list becomes stale and checks are
 INCOMPLETE.
+
+**Q6, decided 2026-09-28.** Chainalysis is dropped as a source. Sanctions screening uses the local
+OFAC list.
+
+**Q8, decided 2026-09-28.** `audit export` (CSV, JSON and PDF) is built in Phase 3, as §12 says.
+Phase 1 builds only `audit list` and `audit verify`.
 
 ## Phase 0 exit criteria
 
