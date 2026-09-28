@@ -233,9 +233,32 @@ than code.
 
 **What this changes:** Phase 2 needs a BSC data source to be chosen (Q4).
 
-## Decisions taken in Phase 0
+## V9. Checked before building Phase 1
 
-These are easy to reverse. Say if you want any of them changed.
+**Checked** on 2026-09-28 with the owner's keys, before the code relied on these facts:
+
+- **TronGrid keeps the whole USDT blacklist history.** The first `AddedBlackList` and
+  `DestroyedBlackFunds` events date from 2020-06-26 (block 20,972,943), and the first
+  `RemovedBlackList` from 2021-08-01.
+- **Paging reaches every event.** Paging 200 at a time through `meta.links.next` reaches the newest
+  event with no duplicates: 8,628 `AddedBlackList`, 970 `RemovedBlackList` and 1,205
+  `DestroyedBlackFunds` events. That is 10,803 events in 56 pages, fetched in about 24 seconds.
+- **The index can stick to confirmed blocks.** `only_confirmed=true` and `min_block_timestamp`
+  filter the event list, and `POST /walletsolidity/getnowblock` returns the latest confirmed block,
+  which ran 19 blocks (about a minute) behind the latest block.
+- **Eagle Virtual's clean answer and errors are as documented.** A never-used address comes back as
+  `verdict: "CLEAR"` with `record_count: 0`. Answers carry a `ratelimit-policy: 1000;w=86400` header
+  but no count of calls left; `/v1/usage` gives that. The spec lists 400 (not an address, costs no
+  call), 401 (missing or invalid key), 403 (unknown plan), 429 (over the limit, with Retry-After) and
+  503 (the record is unavailable: "We do not answer from stale data").
+- **Two sources confirm each other.** For the address Tether blacklisted on 2026-09-27, Eagle
+  Virtual's `/v1/address` record and TronGrid's `AddedBlackList` event name the same transaction and
+  block.
+
+## Decisions
+
+These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0 and
+D6–D12 in Phase 1.
 
 | # | Decision | Why |
 |---|---|---|
@@ -244,6 +267,13 @@ These are easy to reverse. Say if you want any of them changed.
 | D3 | Two columns added to the §9 schema: `checks.seq` and `check_findings.observed_at` | `seq` fixes the order of the hash chain. `observed_at` is required by §5.2 but missing from §9 |
 | D4 | `mypy --strict` covers the whole package, not only `core/` | Cheap while the code is small |
 | D5 | CI runs on Ubuntu and macOS, with Python 3.12 and 3.14 | The oldest supported and newest Python, on the two platforms §11 requires |
+| D6 | `amlcheck check` exits 0 for NO_HITS, 3 for REVIEW, 4 for INCOMPLETE, 5 for BLOCK, and 1 when the check could not run | A script can stop on anything but NO_HITS |
+| D7 | Every TRON check first refreshes the blacklist index, which takes a few requests and about a second. `amlcheck sync tron-index` is needed only once, to build it. The index goes stale only when it cannot be refreshed for over an hour | The history stays current without a scheduler |
+| D8 | A `Retry-After` longer than 10 seconds is not waited out: that source is reported as failed and the check is INCOMPLETE. Change the limit with `[network] max_retry_after_seconds` | Meets AT-07 without stalling the operator |
+| D9 | Eagle Virtual's full record (`/v1/address`, one more call) is read only when the verdict is not CLEAR. Answers are cached for 15 minutes, but an answer with a gap is never cached | Every freeze finding names its chain, token and transaction, at the lowest cost in calls |
+| D10 | A listed address that fails its checksum is kept, and a warning is logged (V1). The downloaded XML is parsed with `defusedxml` | A typo on the list must not hide an entry, and the parser refuses XML attacks |
+| D11 | Migration 0002 adds the listed entity's name, a snapshot's address count, the balance destroyed by `DestroyedBlackFunds`, the time of the index's last block, and the summaries shown to the operator | Evidence in plain words, the §14 sanity check, and an audit hash that covers what the operator saw |
+| D12 | `audit verify` prints the latest record hash, to keep a copy elsewhere | A hash chain cannot show records cut off its end from inside the file |
 
 ## Open questions
 
