@@ -1,0 +1,255 @@
+# Phase 0 verification report
+
+> **Checked:** 2026-09-28 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
+
+This report checks every item that PRD §6 marks **verify**, plus the provider facts that §2 and §11
+rely on. Each item says where it was checked, what was found and what it changes in the build.
+Providers change: re-check an item before a later phase depends on it.
+
+## Summary
+
+| ID | Item | Result | Status |
+|---|---|---|---|
+| V1 | OFAC SDN download | Official Sanctions List Service URLs work without a key. The list published 2026-09-23 holds 1,059 digital currency addresses | Confirmed |
+| V2 | Chainalysis free sanctions API | The API still answers, but its sign-up page now leads to a paid product | **Not available to new users** |
+| V3 | OpenSanctions licence | Free for non-commercial use only | Confirmed, not free for this project |
+| V4 | Eagle Virtual | API, Free plan limits and licence terms match the PRD. BSC coverage can only be seen with a key | **BSC coverage pending a key** |
+| V5 | TRON USDT contract and events | Address, the three event names and `isBlackListed` confirmed live | Confirmed |
+| V6 | BSC USDT freeze capability | The contract has no freeze, blacklist or pause function | **Finding: it cannot freeze** |
+| V7 | TronGrid | Endpoints confirmed. Limits are set per key and not published | Confirmed |
+| V8 | BSC chain data | Etherscan V2 is current, but BSC is paid-only there. BscScan's API is retired | **Decision needed** |
+
+## V1. OFAC SDN list
+
+**PRD:** verify the current download URL; match on the address string whatever the currency label;
+store the snapshot hash and publish date.
+
+**Checked:**
+
+- `https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML` redirects
+  (302) to a short-lived signed S3 URL and downloads without a key: 29,089,607 bytes,
+  `Last-Modified: Wed, 23 Sep 2026 14:07:28 GMT`, sha256 `d533a38e…01654227`.
+- The file states its own publication: `<publshInformation><Publish_Date>09/23/2026</Publish_Date>`
+  `<Record_Count>19391</Record_Count>`. The spelling `publsh` is OFAC's, and the date is `MM/DD/YYYY`.
+- `SDN_ADVANCED.XML` from the same service is 127,051,135 bytes and defines the same 20
+  "Digital Currency Address" types. It arrived at about 190 KB/s and a 5-minute download timed out
+  halfway.
+- Daily changes are published too: `https://sanctionslistservice.ofac.treas.gov/changes/latest`
+  redirects to `DeltaArchive/2026-09-23_delta.xml`.
+
+**How addresses appear:** inside each `<sdnEntry>` (with its `<uid>` and `<programList>`) as
+`<id><idType>Digital Currency Address - TRX</idType><idNumber>T…</idNumber></id>`.
+The 2026-09-23 list holds:
+
+- 1,059 addresses (1,043 unique) on 99 entries, under 20 currency labels.
+- 334 TRON addresses: 254 labelled TRX, 79 labelled USDT and 1 labelled XBT.
+- 133 `0x` addresses (124 unique). Only one is labelled BSC; most are labelled ETH, 8 USDT,
+  and 1 each USDC, ARB and ETC.
+
+**The label cannot be trusted**, which confirms the PRD's rule:
+
+- Mingming WANG (uid 45404) has TRON address `TUCsTq7TofTCJRRoHk6RvhMoS2mJLm5Yzq` filed under XBT.
+- 7 USDT-labelled addresses are Bitcoin-format (USDT on Omni): SUEX, Chatex, Garantex Europe.
+- The only BNB-labelled address is a retired BNB Beacon Chain `bnb1…` address, not BSC.
+
+**Checksums:** 69 of the 133 `0x` entries are mixed case, and all 69 pass EIP-55. All 334 TRON
+addresses pass base58check.
+
+**What this changes:**
+
+- Match on the address alone. For a BSC check, every `0x` address on the list counts, whatever its
+  label.
+- When loading the list, lowercase `0x` addresses. Keep an entry whose checksum fails and log it,
+  because a typo in the list must not hide a sanctioned address. User input stays strict (AT-10).
+- The tool downloads `SDN.XML` by default (decision D1).
+
+## V2. Chainalysis free sanctions screening API
+
+**PRD:** optional second opinion; verify the current sign-up and terms.
+
+**Checked:**
+
+- `GET https://public.chainalysis.com/api/v1/address/{address}` with an invalid `X-API-Key` answers
+  `401 {"message":"Invalid API Key"}`, so the service is still running.
+- The documented sign-up page `https://go.chainalysis.com/crypto-sanctions-screening.html` now
+  redirects (301) to `https://www.chainalysis.com/product/address-screening/`. That page describes
+  the paid Address Screening product and only offers "Request a demo".
+- The API reference at `auth-developers.chainalysis.com/sanctions-screening/...` returns
+  "Page Not Found".
+
+**What this changes:** a new free key cannot be obtained. Drop this source unless you already
+hold a key (Q6).
+
+## V3. OpenSanctions
+
+**PRD:** free for non-commercial use only; verify the licence before commercial use.
+
+**Checked** (`https://www.opensanctions.org/licensing/`): the data is licensed CC BY-NC 4.0. Commercial
+use needs one of three paid options: the Screening API (pay as you go, 30-day trial), a Screening
+License (flat rate, internal use) or a Reseller License. No prices are published.
+
+**What this changes:** screening for an OTC settlement business is commercial use, so this source
+stays out unless a licence is bought.
+
+## V4. Eagle Virtual
+
+**Checked** against the public spec `https://eaglevirtual.com/v1/openapi.json` (version 1.2.0) and
+`https://eaglevirtual.com/license`:
+
+| PRD claim | Result |
+|---|---|
+| `GET /v1/check/{address}` returns `CLEAR / FROZEN / SEIZED / UNFROZEN` | Confirmed. A live seizure outranks a live freeze, which outranks a lifted one |
+| `null` with a reason when a chain is behind | Confirmed: `verdict: null` with `verdict_reason: "coverage_unvouched"`, and `coverage.not_vouched_for[]` names each chain (`never scanned` or `scan behind`). The spec states "The API never says CLEAR over a gap" |
+| Free plan: 1 key, 1,000 checks a day, 1 request a second | Confirmed |
+| Attribution line required | Confirmed: the licence calls crediting "a condition of that license rather than a request". The exact text arrives in the `x-ev-credit-line` header of every Free plan answer, so the tool should print that header rather than a fixed string |
+| Bearer key starting `ev_` | Confirmed: `Authorization: Bearer ev_live_…` |
+| Spec is public | Confirmed |
+| Business plan for event lists and volume | Confirmed: 5 keys, each 25,000 checks a day at 10 a second. Event rows need Business or Enterprise |
+| Resale or bundling needs a written agreement | Confirmed. So do bulk republishing, building a dataset and training a model. Bundling means "building it into another product or data feed you supply", which matters for PRD Q4 |
+| BSC appears in `GET /v1/chains` | **Not verified.** `/v1/chains` answers `401 missing_key` without a key, and the spec never mentions BSC, BNB or Binance |
+
+**Also found:**
+
+- `/v1/check` returns `address`, `address_display`, `address_family` (`evm`, `tron`, `solana` or
+  `stellar`), `verdict`, `verdict_reason`, `as_of` and `checked_at` (UTC seconds), `record_count`,
+  `coverage` and `url`.
+- A `0x` address is checked as a family: one call answers for every EVM chain Eagle Virtual covers,
+  not only BSC (Q2).
+- `GET /v1/usage` reports calls made today against the daily limit, costs nothing and resets at
+  midnight UTC. On the Free plan the counter is per account and shared with Eagle Virtual's MCP
+  server. `amlcheck status` can show it.
+
+**Still to do:** once `EAGLE_VIRTUAL_API_KEY` is set, call `GET /v1/chains` and record whether BSC
+is covered.
+
+## V5. TRON USDT contract and blacklist events
+
+**Checked** through TronGrid without a key:
+
+- `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` is `TetherToken` (`POST /wallet/getcontract`), symbol
+  `USDT`, 6 decimals.
+- The ABI has exactly the events the PRD names: `AddedBlackList(address indexed _user)`,
+  `RemovedBlackList(address indexed _user)` and
+  `DestroyedBlackFunds(address indexed _blackListedUser, uint256 _balance)`.
+- The read functions `isBlackListed(address)` and `getBlackListStatus(address)` both return a bool.
+- All three events occur on chain (`GET /v1/contracts/{contract}/events?event_name=…`). The latest
+  `AddedBlackList` was on 2026-09-27 at block 86,613,172, `RemovedBlackList` on 2026-09-25 and
+  `DestroyedBlackFunds` on 2026-09-16.
+- Spot check (`POST /wallet/triggerconstantcontract`): `isBlackListed` returns true for an address
+  blacklisted on 2026-09-27.
+
+**Not in the PRD:**
+
+- **The contract can be retired.** It has `deprecate(address)`, `deprecated()`, `upgradedAddress()`
+  and a `Deprecate` event. Today `deprecated()` is false. If Tether ever upgrades, the blacklist moves
+  to the new contract, so the indexer must check `deprecated()` on every sync and report an `error`
+  (making the verdict INCOMPLETE) rather than read a stale list.
+- The contract can also pause every transfer (`pause()`). It is not paused today.
+- TronGrid gives event addresses in `0x` hex form without the `41` prefix. They must be converted to
+  `T…` base58 before matching.
+- The USDT contract address is itself blacklisted.
+
+Recorded responses are in `tests/fixtures/tron/`.
+
+## V6. BSC USDT freeze capability
+
+**PRD:** BEP20 USDT is Binance-Peg, not issued by Tether. Find out whether it can freeze or blacklist
+at all, and don't assume parity with TRON.
+
+**Checked** on a public BSC node (`https://bsc-dataseed.bnbchain.org`, chain id 56) without a key:
+
+- `0x55d398326f99059fF775485246999027B3197955` reports `name()` "Tether USD", `symbol()` "USDT" and
+  **`decimals()` 18**. TRON USDT uses 6, which matters for amounts in Phase 2.
+- **It is not a proxy.** The EIP-1967 implementation and beacon slots and the older OpenZeppelin slot
+  are all empty, so its code cannot be swapped.
+- **Its complete function list** was read from the deployed bytecode: 20 functions, named through
+  `api.4byte.sourcify.dev`. They are the BEP-20 basics plus `mint(uint256)`, `burn(uint256)`,
+  `getOwner()`, `owner()`, `renounceOwnership()` and `transferOwnership(address)`. That is Binance's
+  standard BEP20Token template.
+- **None of 14 freeze, blacklist or pause functions** (Tether's, Circle's and common variants) is
+  present, and the code emits no blacklist event. The same scan run on TRON USDT finds all five of
+  its blacklist functions and all three events, so the method works.
+
+**Conclusion: BEP20 USDT cannot freeze, blacklist or seize an address.** Its only privileged
+functions mint or burn supply and manage ownership, and none of them takes a holder's address.
+
+Reproduce with `uv run scripts/verify_bsc_usdt.py`.
+
+**What this changes:** on BSC, rules R-FRZ-01 and R-FRZ-02 have nothing to check at the token level.
+PRD §14 already asks for freeze coverage to be shown per chain. How the verdict should treat it is
+Q1.
+
+## V7. TronGrid
+
+**Checked** (`https://developers.tron.network/reference/rate-limits` and `/reference/api-key`):
+
+- The API key goes in the `TRON-PRO-API-KEY` header.
+- No fixed limits are published. The docs say "Do not hard-code fixed limits into business logic".
+  Limits are set per key in the TronGrid console, and requests without a key "may be limited by IP".
+- A rate-limited request answers 429 **or 403**.
+
+**Endpoints**, all answering without a key on 2026-09-28:
+
+- `GET /v1/accounts/{address}/transactions/trc20?contract_address=…` returns `transaction_id`,
+  `block_timestamp` (ms), `from`, `to`, `value`, `type` and `token_info`. **It has no block number.**
+  Evidence built from it carries the transaction ID and time; the block needs a separate lookup.
+- `GET /v1/contracts/{address}/events?event_name=…` returns rows with `block_number`,
+  `block_timestamp`, `transaction_id`, `event_index` and `result`, paged with `meta.fingerprint`.
+- `POST /wallet/triggerconstantcontract` makes read-only contract calls.
+
+**What this changes:** treat a TronGrid 403 like a 429, and read the rate limit from config rather
+than code.
+
+## V8. BSC chain data
+
+**Checked:**
+
+- The Etherscan V2 chain list (`https://docs.etherscan.io/supported-chains`) marks BNB Smart Chain
+  Mainnet (56) **"Paid Tier Only"**. Only the source code and ABI endpoints are free on every chain.
+- A live call, `https://api.etherscan.io/v2/api?chainid=56&module=account&action=tokentx…`, answers
+  "Free API access is not supported for this chain. Please upgrade your api plan for full chain
+  coverage."
+- `https://api.bscscan.com/api` answers 301. BNB Chain's own blog (9 December 2025) confirms the
+  BscScan API was merged into Etherscan V2 with no free tier for BNB Chain. It points to
+  BSCTrace/MegaNode (NodeReal) as an alternative with a free tier; there, transfer history is the
+  JSON-RPC method `nr_getAssetTransfers`, with the key in the URL path. That alternative was not
+  checked further.
+- PublicAML, the API behind `checker.py`, also serves BSC transfers and counterparties. Without a key
+  it allows 20 addresses an hour on those endpoints.
+
+**What this changes:** Phase 2 needs a BSC data source to be chosen (Q4).
+
+## Decisions taken in Phase 0
+
+These are easy to reverse. Say if you want any of them changed.
+
+| # | Decision | Why |
+|---|---|---|
+| D1 | OFAC source is `SDN.XML`, not `SDN_ADVANCED.XML` | Same 20 digital currency address types at a quarter of the size. Change it with `[ofac] sdn_url` |
+| D2 | Data, config and logs live in `~/.amlcheck/` (override with `AMLCHECK_HOME`). Config is `~/.amlcheck/config.toml` (override with `AMLCHECK_CONFIG`). Keys come from the environment, then `./.env`, then `~/.amlcheck/.env` | The PRD fixes the database location but not the rest |
+| D3 | Two columns added to the §9 schema: `checks.seq` and `check_findings.observed_at` | `seq` fixes the order of the hash chain. `observed_at` is required by §5.2 but missing from §9 |
+| D4 | `mypy --strict` covers the whole package, not only `core/` | Cheap while the code is small |
+| D5 | CI runs on Ubuntu and macOS, with Python 3.12 and 3.14 | The oldest supported and newest Python, on the two platforms §11 requires |
+
+## Open questions
+
+Per PRD §0 rule 7, these are listed rather than guessed.
+
+| # | Question | Needed by |
+|---|---|---|
+| Q1 | BEP20 USDT cannot be frozen (V6). On BSC, should the freeze source report `skipped` ("not applicable"), and can a BSC check then end in `NO_HITS`? Proposal: yes, with the reason printed on every BSC result | Phase 1 |
+| Q2 | Eagle Virtual answers for a `0x` address across every EVM chain it covers (V4). If Tether froze the same `0x` address on Ethereum, should a BSC check say BLOCK (R-FRZ-01), REVIEW, or ignore it? And if an unrelated EVM chain is behind (`verdict: null`), is the BSC check INCOMPLETE, as §6 reads literally? | Phase 1 |
+| Q3 | "Sanctions snapshot > 48 h old" (§11): is age measured from our last successful download, or from OFAC's publish date? OFAC does not publish daily (the current list is from 2026-09-23), so measuring from the publish date would make most checks INCOMPLETE. Proposal: from the last successful download | Phase 1 |
+| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 |
+| Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 |
+| Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 |
+| Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 |
+| Q8 | §10.1 says audit export is CSV and JSON, with "PDF in Phase 3", but §12 puts all export in Phase 3. Which is it? | Phase 1 |
+
+## Phase 0 exit criteria
+
+| Criterion | Status |
+|---|---|
+| `amlcheck --help` runs | Done |
+| CI green | Lint, format, `mypy --strict` and 41 tests pass locally on Python 3.12 and 3.14. GitHub Actions runs when the branch is pushed |
+| Verification report complete | Done, except V4's BSC coverage, which needs an Eagle Virtual key |

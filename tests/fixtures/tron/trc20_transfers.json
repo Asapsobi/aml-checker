@@ -1,0 +1,41 @@
+{
+ "data": [
+  {
+   "transaction_id": "56e8aa2da1616bba488a83fea2ca82b5b7b9b97064e91f66e755b8dbec19694a",
+   "token_info": {
+    "symbol": "USDT",
+    "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "decimals": 6,
+    "name": "Tether USD"
+   },
+   "block_timestamp": 1786417131000,
+   "from": "TJCVx7CpWQmahttvdbQAHpToEHMJhZcdk9",
+   "to": "TNiq9AXBp9EjUqhDhrwrfvAA8U3GUQZH81",
+   "type": "Transfer",
+   "value": "10000"
+  },
+  {
+   "transaction_id": "9ed6ac5c63716767b3b2b2f752ccfa31faad402aaeed2527abeae8d8bfa4ae8a",
+   "token_info": {
+    "symbol": "USDT",
+    "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "decimals": 6,
+    "name": "Tether USD"
+   },
+   "block_timestamp": 1786069848000,
+   "from": "TJCVx7CpWQmahttvdbQAHpToEHMJhZcdk9",
+   "to": "TNiq9AXBp9EjUqhDhrwrfvAA8U3GUQZH81",
+   "type": "Transfer",
+   "value": "10000"
+  }
+ ],
+ "success": true,
+ "meta": {
+  "at": 1790589601195,
+  "fingerprint": "Cndjyb3vXAcmbZ5Qkzas1XWWxWmyEp6mfFF5uh3UKWWih9nxGxKmPwBbsdfG8Q2N9BX1TcbgWAdHNwzFRvXvqGPkdhtSvGej7H7qixEDbCVuSCDCnVxCkaxJ3E8N2TkZL3KC6qHaRwTWH5eHSYKFtVynZZB7hLKLpMuZ9kCtE7BYxwDkGM51UTu8yhwJNUSUJh1exHUQowHGo7UF38ryDc3K7kzefjjyov7P3FjSr2HDHfpzod9Yc4pKLnEEaCL5YGNM4wBX1JfNr",
+  "links": {
+   "next": "https://api.trongrid.io/v1/accounts/TNiq9AXBp9EjUqhDhrwrfvAA8U3GUQZH81/transactions/trc20?contract_address=TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t&limit=2&fingerprint=Cndjyb3vXAcmbZ5Qkzas1XWWxWmyEp6mfFF5uh3UKWWih9nxGxKmPwBbsdfG8Q2N9BX1TcbgWAdHNwzFRvXvqGPkdhtSvGej7H7qixEDbCVuSCDCnVxCkaxJ3E8N2TkZL3KC6qHaRwTWH5eHSYKFtVynZZB7hLKLpMuZ9kCtE7BYxwDkGM51UTu8yhwJNUSUJh1exHUQowHGo7UF38ryDc3K7kzefjjyov7P3FjSr2HDHfpzod9Yc4pKLnEEaCL5YGNM4wBX1JfNr"
+  },
+  "page_size": 2
+ }
+}

@@ -1,0 +1,47 @@
+{
+ "data": [
+  {
+   "block_number": 86613172,
+   "block_timestamp": 1790511945000,
+   "caller_contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "event_index": 1,
+   "event_name": "AddedBlackList",
+   "result": {
+    "0": "0x04c11ec1d749054d4ef6681bc98ca37663d16553",
+    "_user": "0x04c11ec1d749054d4ef6681bc98ca37663d16553"
+   },
+   "result_type": {
+    "_user": "address"
+   },
+   "event": "AddedBlackList(address indexed _user)",
+   "transaction_id": "c743e8f463596d2803c9240f903302821fc178bfd8c6652c8eb9590365c2cbfe"
+  },
+  {
+   "block_number": 86613172,
+   "block_timestamp": 1790511945000,
+   "caller_contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "event_index": 1,
+   "event_name": "AddedBlackList",
+   "result": {
+    "0": "0x3b4b1b7989a0b10766ede75cdcccaa6d50b9c921",
+    "_user": "0x3b4b1b7989a0b10766ede75cdcccaa6d50b9c921"
+   },
+   "result_type": {
+    "_user": "address"
+   },
+   "event": "AddedBlackList(address indexed _user)",
+   "transaction_id": "d9d4cf7137613b08a01aad8a37b38534558a76c50163701c4fd22c5b16dc463b"
+  }
+ ],
+ "success": true,
+ "meta": {
+  "at": 1790588340857,
+  "fingerprint": "Fb3RWzrbMA8gYRqsqNXtUUz2c2PMQRXPUsZJYtWo4VNsysRfTB3JX8FJaosbk3Crbq6GxdNo9Hgj4HhMFqNeUCevZE4vrMGTD9E4rDAWXcAV6mGFn2Ctu7jwZrshezXE7bStw2MGUyM4nEcywHgdZ6Ac4w1ds75Ri94fuPrWoWfTgZfEehgyHWYzEk4L73zQBUEV7rqAa9paCGCaUMC2L3b2bT9gEbGRwL9XEKvVEsXMWbUjew4",
+  "links": {
+   "next": "https://api.trongrid.io/v1/contracts/TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t/events?event_name=AddedBlackList&limit=2&order_by=block_timestamp,desc&fingerprint=Fb3RWzrbMA8gYRqsqNXtUUz2c2PMQRXPUsZJYtWo4VNsysRfTB3JX8FJaosbk3Crbq6GxdNo9Hgj4HhMFqNeUCevZE4vrMGTD9E4rDAWXcAV6mGFn2Ctu7jwZrshezXE7bStw2MGUyM4nEcywHgdZ6Ac4w1ds75Ri94fuPrWoWfTgZfEehgyHWYzEk4L73zQBUEV7rqAa9paCGCaUMC2L3b2bT9gEbGRwL9XEKvVEsXMWbUjew4"
+  },
+  "page_size": 2
+ }
+}
