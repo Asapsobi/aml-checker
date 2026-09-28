@@ -255,10 +255,49 @@ than code.
   Virtual's `/v1/address` record and TronGrid's `AddedBlackList` event name the same transaction and
   block.
 
+## V10. Checked before building Phase 2
+
+**TronGrid**, checked on 2026-09-28 with the owner's key:
+
+- **Transfer history has the filters the scan needs.** `GET /v1/accounts/{address}/transactions/trc20`
+  filters by `contract_address`, `only_confirmed`, `min_timestamp` and `order_by`, and pages 200 rows
+  at a time through `meta.links.next`. Each row has `transaction_id`, `block_timestamp`, `from`,
+  `to`, `value`, `type` and `token_info` (6 decimals). A never-used address answers
+  `{"data": [], "success": true}`.
+- **Creation time comes from the node API.** `GET /v1/accounts/{address}` has no creation time.
+  `POST /wallet/getaccount` has `create_time` (in ms), and answers `{}` for an address that was
+  never activated.
+- **USDT does not need activation.** `TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ`, frozen on 2026-09-27, has
+  no `create_time` but six USDT transfers. First activity is therefore the earlier of `create_time`
+  and the first USDT transfer (`order_by=block_timestamp,asc`, `limit=1`).
+- **The exit-criterion fixture is real.** `TAjoXRsomrsDDCXsxD1ELFQu4wHfF9HZSv` was activated on
+  2026-09-24. On 2026-09-26, the day before Tether froze `TAQM43ow…`, it received 500,000 USDT from
+  it, and it passed 3,000,050 USDT on within minutes.
+- **A busy address is read quickly.** The newest 5,000 transfers of a Bybit hot wallet took 25
+  pages and about 20 seconds.
+
+**NodeReal**, the first choice for Q4, checked on 2026-09-28:
+
+- **Every request covers at most 100,000 blocks**, with or without an address filter. The docs for
+  `nr_getAssetTransfers` (250 compute units a call) say: "If both fromBlock and toBlock are provided,
+  their range must be no more than 100000 blocks".
+- **That is only 12.5 hours of BSC.** BSC makes a block every 0.45 seconds (measured over its last
+  1,000,000 blocks), so 180 days take 345 requests in each direction.
+- **Neither plan is fast enough.** The pricing page gives the Free plan 10,000,000 compute units a
+  month at 150 a second (the docs also say 100M and 300). The Growth plan costs $31 a month for 700
+  a second. A check would take about 20 minutes on Free and about 4 on Growth.
+- **So NodeReal does not hold up,** and Q4's fallback applies.
+
+**Etherscan**, the fallback: the cheapest plan that covers BNB Smart Chain is Lite, at $49 a month,
+with 5 calls a second and 100,000 a day. Its docs list `module=account&action=tokentx` with
+`address`, `contractaddress`, `startblock`, `endblock`, `page`, `offset` and `sort`, returning
+`blockNumber`, `timeStamp`, `hash`, `from`, `to`, `value` and `tokenDecimal` among others. This is to
+be checked live once a key exists.
+
 ## Decisions
 
-These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0 and
-D6–D12 in Phase 1.
+These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0,
+D6–D12 in Phase 1 and D13–D20 in Phase 2.
 
 | # | Decision | Why |
 |---|---|---|
@@ -274,6 +313,14 @@ D6–D12 in Phase 1.
 | D10 | A listed address that fails its checksum is kept, and a warning is logged (V1). The downloaded XML is parsed with `defusedxml` | A typo on the list must not hide an entry, and the parser refuses XML attacks |
 | D11 | Migration 0002 adds the listed entity's name, a snapshot's address count, the balance destroyed by `DestroyedBlackFunds`, the time of the index's last block, and the summaries shown to the operator | Evidence in plain words, the §14 sanity check, and an audit hash that covers what the operator saw |
 | D12 | `audit verify` prints the latest record hash, to keep a copy elsewhere | A hash chain cannot show records cut off its end from inside the file |
+| D13 | Transfers of 0 USDT are left out of the history | On TRON anyone can send them to any address (address poisoning): spam, not dealings |
+| D14 | An address with no activity at all counts as new (R-HEU-01) | It is as new as an address can be, so NO_HITS would hide that |
+| D15 | First activity is the earlier of the account's activation and its first USDT transfer | An address can move USDT without ever being activated (V10) |
+| D16 | R-EXP-02's "flagged sources" are those R-EXP-01 flags: sanctioned or frozen. Labels count only for R-HEU-05 | Keeps the two exposure rules consistent |
+| D17 | `labels import` replaces every label, and imports nothing if any row is wrong | The file is the source of truth |
+| D18 | The exposure source is required: if the history cannot be read, the result is INCOMPLETE | PRD §0 rule 4 |
+| D19 | At most 10 R-EXP-01 and 10 R-HEU-05 findings per check, largest counterparties first | Keeps a busy address's result readable |
+| D20 | A finding's priority is kept in its evidence (`"priority": "low"`), not in a new column | Existing audit records keep verifying |
 
 ## Open questions
 
@@ -284,11 +331,14 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q1 | BEP20 USDT cannot be frozen (V6). On BSC, should the freeze source report `skipped` ("not applicable"), and can a BSC check then end in `NO_HITS`? | Phase 1 | Decided |
 | Q2 | Eagle Virtual answers for a `0x` address across every EVM chain it covers (V4). If Tether froze the same `0x` address on Ethereum, should a BSC check say BLOCK (R-FRZ-01), REVIEW, or ignore it? And if an unrelated EVM chain is behind (`verdict: null`), is the BSC check INCOMPLETE, as §6 reads literally? | Phase 1 | Decided |
 | Q3 | "Sanctions snapshot > 48 h old" (§11): is age measured from our last successful download, or from OFAC's publish date? OFAC does not publish daily (the current list is from 2026-09-23), so measuring from the publish date would make most checks INCOMPLETE. | Phase 1 | Decided |
-| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | Open |
-| Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 | Open |
+| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | **Waiting for the Etherscan purchase** |
+| Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 | Decided |
 | Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 | Decided |
-| Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 | Open |
+| Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 | Decided |
 | Q8 | §10.1 says audit export is CSV and JSON, with "PDF in Phase 3", but §12 puts all export in Phase 3. Which is it? | Phase 1 | Decided |
+| Q9 | PRD §15 Q1: should R-EXP-01 be BLOCK instead of REVIEW? | Phase 2 | Decided |
+| Q10 | What happens with an address that has more transfers than a check can read quickly? | Phase 2 | Decided |
+| Q11 | How does the "allowlist for own/known wallets" in `labels.csv` (§14) work? | Phase 2 | Decided |
 
 ### Answers
 
@@ -315,6 +365,32 @@ OFAC list.
 
 **Q8, decided 2026-09-28.** `audit export` (CSV, JSON and PDF) is built in Phase 3, as §12 says.
 Phase 1 builds only `audit list` and `audit verify`.
+
+**Q4, 2026-09-28.** NodeReal's free tier was the first choice if its limits held up. They do not
+(V10), so the agreed fallback applies: an Etherscan Lite plan at $49 a month. That now waits for
+the owner's purchase. Until then a BSC check is INCOMPLETE, because the exposure source has no
+history to read.
+
+**Q5, decided 2026-09-28.** PublicAML is not a source for now, because it publishes no terms or
+licence. Revisit in Phase 4, when the PRD adds a commercial vendor.
+
+**Q7, decided 2026-09-28.**
+
+- **R-HEU-03 (fan-in):** more than 50 different senders, each sending under 100 USDT, within 24
+  hours.
+- **R-HEU-04 (fan-out):** more than 50 different recipients within 24 hours.
+- **`low`** marks a REVIEW finding as low priority. It does not change the verdict.
+- All of these can be changed under `[heuristics]` in `config.toml`.
+
+**Q9, decided 2026-09-28.** R-EXP-01 is REVIEW by default, as §5.2 says. Setting
+`[rules] severity = { "R-EXP-01" = "BLOCK" }` makes it BLOCK.
+
+**Q10, decided 2026-09-28.** The exposure source reads at most 5,000 transfers in the lookback
+(`[exposure] max_transfers`). If the lookback holds more, the source is stale and the result is
+INCOMPLETE, never a clean result over part of the history.
+
+**Q11, decided 2026-09-28.** Counterparties tagged `allowlist` in `labels.csv` are left out of
+R-HEU-02 to R-HEU-04. They never cancel a sanctions or freeze finding.
 
 ## Phase 0 exit criteria
 

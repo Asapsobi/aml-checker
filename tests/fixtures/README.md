@@ -22,6 +22,14 @@ date here.
 | `isBlackListed_true.json` | `POST https://api.trongrid.io/wallet/triggerconstantcontract` calling `isBlackListed(address)` for `TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ`, blacklisted by Tether on 2026-09-27 |
 | `isBlackListed_false.json`, `deprecated_false.json` | The same call for an address that is not blacklisted, and for `deprecated()` |
 | `solidity_nowblock.json` | `POST https://api.trongrid.io/walletsolidity/getnowblock`, the latest confirmed block (its transactions removed) |
+| `transfers_TAjoXR.json` | `GET https://api.trongrid.io/v1/accounts/TAjoXRsomrsDDCXsxD1ELFQu4wHfF9HZSv/transactions/trc20?contract_address=TR7N…&only_confirmed=true&limit=200&order_by=block_timestamp,desc`: its whole history, 12 transfers, including 500,000 USDT from the Tether-frozen `TAQM43ow…` (the Phase 2 exit criterion) |
+| `transfers_TAjoXR_first.json` | The same with `order_by=block_timestamp,asc&limit=1`: its first USDT transfer |
+| `getaccount_TAjoXR.json` | `POST https://api.trongrid.io/wallet/getaccount` for the same address, activated on 2026-09-24 |
+| `transfers_never_used.json`, `getaccount_never_used.json` | The same two requests for the never-used `TJwwz9NR37hjXdAV5gowj7src4avMuZZNW` |
+
+Tests build further histories with `transfer_row` in `tests/conftest.py`, in the shape of these
+recordings. Tests that run the command line on the real clock shift every history, unchanged
+in shape, to just before the current date so it stays inside the 180-day lookback.
 
 ## Eagle Virtual (`eagle_virtual/`)
 
