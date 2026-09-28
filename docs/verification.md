@@ -233,23 +233,43 @@ These are easy to reverse. Say if you want any of them changed.
 
 ## Open questions
 
-Per PRD §0 rule 7, these are listed rather than guessed.
+Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded below as they arrive.
 
-| # | Question | Needed by |
-|---|---|---|
-| Q1 | BEP20 USDT cannot be frozen (V6). On BSC, should the freeze source report `skipped` ("not applicable"), and can a BSC check then end in `NO_HITS`? Proposal: yes, with the reason printed on every BSC result | Phase 1 |
-| Q2 | Eagle Virtual answers for a `0x` address across every EVM chain it covers (V4). If Tether froze the same `0x` address on Ethereum, should a BSC check say BLOCK (R-FRZ-01), REVIEW, or ignore it? And if an unrelated EVM chain is behind (`verdict: null`), is the BSC check INCOMPLETE, as §6 reads literally? | Phase 1 |
-| Q3 | "Sanctions snapshot > 48 h old" (§11): is age measured from our last successful download, or from OFAC's publish date? OFAC does not publish daily (the current list is from 2026-09-23), so measuring from the publish date would make most checks INCOMPLETE. Proposal: from the last successful download | Phase 1 |
-| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 |
-| Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 |
-| Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 |
-| Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 |
-| Q8 | §10.1 says audit export is CSV and JSON, with "PDF in Phase 3", but §12 puts all export in Phase 3. Which is it? | Phase 1 |
+| # | Question | Needed by | Status |
+|---|---|---|---|
+| Q1 | BEP20 USDT cannot be frozen (V6). On BSC, should the freeze source report `skipped` ("not applicable"), and can a BSC check then end in `NO_HITS`? | Phase 1 | Decided |
+| Q2 | Eagle Virtual answers for a `0x` address across every EVM chain it covers (V4). If Tether froze the same `0x` address on Ethereum, should a BSC check say BLOCK (R-FRZ-01), REVIEW, or ignore it? And if an unrelated EVM chain is behind (`verdict: null`), is the BSC check INCOMPLETE, as §6 reads literally? | Phase 1 | Proposal waiting for confirmation |
+| Q3 | "Sanctions snapshot > 48 h old" (§11): is age measured from our last successful download, or from OFAC's publish date? OFAC does not publish daily (the current list is from 2026-09-23), so measuring from the publish date would make most checks INCOMPLETE. | Phase 1 | Decided |
+| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | Open |
+| Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 | Open |
+| Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 | Open |
+| Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 | Open |
+| Q8 | §10.1 says audit export is CSV and JSON, with "PDF in Phase 3", but §12 puts all export in Phase 3. Which is it? | Phase 1 | Open |
+
+### Answers
+
+**Q1, decided 2026-09-28.** The BEP20 USDT contract check reports `skipped` with the reason
+"BEP20 USDT has no freeze function (V6)". A skipped source is not a failure, so a BSC check can end in
+`NO_HITS`. Every BSC result states that the token cannot be frozen. This covers only the token's own
+freeze check. Eagle Virtual still runs for BSC addresses, because its answer covers the same address
+on other EVM chains (Q2).
+
+**Q2, proposal waiting for confirmation.** Apply R-FRZ-01 as written. If Eagle Virtual reports the
+address FROZEN or SEIZED on any EVM chain, a BSC check is BLOCK, and the finding names the chain,
+token and freezing transaction. An ordinary wallet has the same owner on every EVM chain, because one
+private key controls that address everywhere. If Eagle Virtual cannot vouch for a chain
+(`verdict: null`), the check is INCOMPLETE and names that chain, as PRD rule 4 requires. If BLOCK
+proves too strict in practice, it can become a configurable REVIEW, like R-EXP-01.
+
+**Q3, decided 2026-09-28.** The sanctions list's age is the time since its last successful download.
+OFAC's publish date is still stored and shown with every result, but it does not make the list
+stale. If OFAC cannot be reached for more than 48 hours, the list becomes stale and checks are
+INCOMPLETE.
 
 ## Phase 0 exit criteria
 
 | Criterion | Status |
 |---|---|
 | `amlcheck --help` runs | Done |
-| CI green | Lint, format, `mypy --strict` and 41 tests pass locally on Python 3.12 and 3.14. GitHub Actions runs when the branch is pushed |
+| CI green | Lint, format, `mypy --strict` and 41 tests pass locally on Python 3.12 and 3.14. GitHub Actions runs them on every push to PR #1 |
 | Verification report complete | Done, except V4's BSC coverage, which needs an Eagle Virtual key |

@@ -37,7 +37,11 @@ class _Section(BaseModel):
 
 
 class Freshness(_Section):
-    """PRD §11: an older source is `stale`, which makes the verdict INCOMPLETE."""
+    """PRD §11: an older source is `stale`, which makes the verdict INCOMPLETE.
+
+    The sanctions list's age counts from its last successful download, not from OFAC's publish
+    date: OFAC does not publish every day (docs/verification.md, Q3).
+    """
 
     sanctions_max_age_hours: int = Field(default=48, gt=0)
     tron_index_max_lag_minutes: int = Field(default=60, gt=0)

@@ -3,7 +3,8 @@
 # API keys never go in this file. They belong in .env (see .env.example).
 
 [freshness]
-# An OFAC snapshot older than this is "stale", which makes the verdict INCOMPLETE (PRD §11).
+# Hours since the OFAC list was last downloaded before it counts as "stale", which makes the
+# verdict INCOMPLETE (PRD §11). OFAC's own publish date does not count: it doesn't publish daily.
 sanctions_max_age_hours = 48
 # How far the local TRON USDT blacklist index may lag the chain (PRD §11).
 tron_index_max_lag_minutes = 60
