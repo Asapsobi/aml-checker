@@ -239,6 +239,23 @@ def test_audit_list_filters_and_verify_finds_tampering(synced: Services, isolate
     assert "BROKEN at record 2" in broken.output
 
 
+def test_audit_list_stays_readable_in_a_narrow_terminal(
+    synced: Services, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No address or check ID may be split across lines: people copy them."""
+    assert runner.invoke(app, ["check", CHEIL_TRON, "--note", "new client"]).exit_code == 5
+    wide = runner.invoke(app, ["audit", "list"]).output
+    header = ["Time", "Verdict", "Chain", "Address", "Check", "Amount", "Note"]
+    assert wide.splitlines()[0].split() == header
+    monkeypatch.setattr(cli.out, "width", 60)
+    lines = runner.invoke(app, ["audit", "list"]).output.splitlines()
+    assert "BLOCK" in lines[0]
+    assert lines[1] == CHEIL_TRON
+    assert lines[2].startswith("check ")
+    assert len(lines[2].removeprefix("check ")) == 36
+    assert lines[3] == "note: new client"
+
+
 @pytest.mark.parametrize("args", [["--verdict", "maybe"], ["--from", "2026-13-01"]])
 def test_audit_list_refuses_bad_filters(args: list[str]) -> None:
     assert runner.invoke(app, ["audit", "list", *args]).exit_code == 1

@@ -350,7 +350,22 @@ def audit_list(
             amount or "",
             note or "",
         )
-    out.print(table)
+    natural_width = out.measure(table, options=out.options.update_width(10_000)).maximum
+    if natural_width <= out.width:
+        out.print(table)
+        return
+    # Too narrow for the table: one block per check, so no address or ID is broken across lines.
+    for created, found, chain, addr, check_id, amount, note in rows:
+        when = local(datetime.fromisoformat(created))
+        verdict_label = (f" {found} ", VERDICT_STYLE[Verdict(found)])
+        out.print(Text.assemble(verdict_label, f"  {when}  {chain.upper()}"), soft_wrap=True)
+        out.print(Text(addr), soft_wrap=True)
+        out.print(Text(f"check {check_id}"), soft_wrap=True)
+        extras = [f"amount {amount}"] if amount else []
+        extras += [f"note: {note}"] if note else []
+        if extras:
+            out.print(Text("  ".join(extras)), soft_wrap=True)
+        out.print()
 
 
 @audit_app.command("export")
