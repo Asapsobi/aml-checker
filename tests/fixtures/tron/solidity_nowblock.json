@@ -1,0 +1,14 @@
+{
+ "blockID": "00000000052a077e20d558b5eff2ed8b9706a8b0bdf572ca6c58cd02fd58b7c7",
+ "block_header": {
+  "raw_data": {
+   "number": 86640510,
+   "txTrieRoot": "d1a0e316e4c348c30df898acf9f4de2ae05a996169cbf937234629876a17ec97",
+   "witness_address": "417f5e5aca5332ce5e18414d7f85bb62097cefa453",
+   "parentHash": "00000000052a077d8039623926c5798811b706f7b741673fee4bab0b7424b38f",
+   "version": 37,
+   "timestamp": 1790593977000
+  },
+  "witness_signature": "ab8d189d3084b1f039b9f58bb6a6d0c007f6abb6f0c55bf2666f42bb8f08626814ec1c1d3dac3bea353faa30c1d228c59fff23668592cfbb5c708ae8a99fd79f01"
+ }
+}

@@ -1,0 +1,581 @@
+<?xml version="1.0" standalone="yes"?>
+<sdnList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML">
+  <publshInformation>
+    <Publish_Date>09/23/2026</Publish_Date>
+    <Record_Count>19391</Record_Count>
+  </publshInformation>
+  <sdnEntry>
+    <uid>27307</uid>
+    <lastName>LAZARUS GROUP</lastName>
+    <sdnType>Entity</sdnType>
+    <programList>
+      <program>DPRK3</program>
+    </programList>
+    <idList>
+      <id>
+        <uid>135306</uid>
+        <idType>Transactions Prohibited For Persons Owned or Controlled By U.S. Financial Institutions:</idType>
+        <idNumber>North Korea Sanctions Regulations section 510.214</idNumber>
+      </id>
+      <id>
+        <uid>150215</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0x098B716B8Aaf21512996dC57EB0615e2383E2f96</idNumber>
+      </id>
+      <id>
+        <uid>150347</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0xa0e1c89Ef1a489c9C7dE96311eD5Ce5D32c20E4B</idNumber>
+      </id>
+      <id>
+        <uid>150348</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0x3Cffd56B47B7b41c56258D9C7731ABaDc360E073</idNumber>
+      </id>
+      <id>
+        <uid>150529</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0x53b6936513e738f44FB50d2b9476730C0Ab3Bfc1</idNumber>
+      </id>
+      <id>
+        <uid>151631</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0x35fB6f6DB4fb05e6A4cE86f2C93691425626d4b1</idNumber>
+      </id>
+      <id>
+        <uid>151632</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0xF7B31119c2682c88d88D455dBb9d5932c65Cf1bE</idNumber>
+      </id>
+      <id>
+        <uid>151633</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0x3e37627dEAA754090fBFbb8bd226c1CE66D255e9</idNumber>
+      </id>
+      <id>
+        <uid>151647</uid>
+        <idType>Digital Currency Address - ETH</idType>
+        <idNumber>0x08723392Ed15743cc38513C4925f5e6be5c17243</idNumber>
+      </id>
+      <id>
+        <uid>132507</uid>
+        <idType>Secondary sanctions risk:</idType>
+        <idNumber>North Korea Sanctions Regulations, sections 510.201 and 510.210</idNumber>
+      </id>
+    </idList>
+    <akaList>
+      <aka>
+        <uid>43391</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>HIDDEN COBRA</lastName>
+      </aka>
+      <aka>
+        <uid>43392</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>OFFICE 91</lastName>
+      </aka>
+      <aka>
+        <uid>43393</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>GUARDIANS OF PEACE</lastName>
+      </aka>
+      <aka>
+        <uid>43394</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>THE NEW ROMANTIC CYBER ARMY TEAM</lastName>
+      </aka>
+      <aka>
+        <uid>43397</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>WHOIS HACKING TEAM</lastName>
+      </aka>
+      <aka>
+        <uid>43398</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>RED DOT</lastName>
+      </aka>
+      <aka>
+        <uid>43399</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>TEMP.HERMIT</lastName>
+      </aka>
+      <aka>
+        <uid>43400</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>GROUP 77</lastName>
+      </aka>
+      <aka>
+        <uid>43401</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>ZINC</lastName>
+      </aka>
+      <aka>
+        <uid>43402</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>APT-C-26</lastName>
+      </aka>
+      <aka>
+        <uid>43403</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>APPLEWORM</lastName>
+      </aka>
+    </akaList>
+    <addressList>
+      <address>
+        <uid>41656</uid>
+        <address1>Potonggang District</address1>
+        <city>Pyongyang</city>
+        <country>Korea, North</country>
+      </address>
+    </addressList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>22985</uid>
+    <lastName>CHEIL CREDIT BANK</lastName>
+    <sdnType>Entity</sdnType>
+    <programList>
+      <program>DPRK4</program>
+    </programList>
+    <idList>
+      <id>
+        <uid>194323</uid>
+        <idType>Target Type</idType>
+        <idNumber>Financial Institution</idNumber>
+      </id>
+      <id>
+        <uid>193748</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz</idNumber>
+      </id>
+      <id>
+        <uid>193749</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TA39q3p75XRSWYAEaSF7dANtyksoa3sLge</idNumber>
+      </id>
+      <id>
+        <uid>193762</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TBATDh41qMQ1yeVYecneEvhpfayYmkAQWS</idNumber>
+      </id>
+      <id>
+        <uid>193763</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TBwghbQMsBC5xcUxE7ZpYXhfDMXZAfiFv6</idNumber>
+      </id>
+      <id>
+        <uid>193764</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TBWRDpQsW1ZVPGGaBAwVLNb7iqmVBuM1nj</idNumber>
+      </id>
+      <id>
+        <uid>193765</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TBYRhsZR7Mdn9ezpGVLwZiNVnGm8wZGLAD</idNumber>
+      </id>
+      <id>
+        <uid>193766</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TBZefVsyQpzzxc2WSCLbZBECvxVdzGqdtC</idNumber>
+      </id>
+      <id>
+        <uid>193767</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TC5UNu3LGrjjVCuLNDdVgjm4oL5cQAyFRZ</idNumber>
+      </id>
+      <id>
+        <uid>193768</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TCA7AfTSuDmgYk2VaezfPuZF4Z4X8wxwcQ</idNumber>
+      </id>
+      <id>
+        <uid>193769</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TDNKsLvsY2iSznyghddXz7ZDRc4X3191Z8</idNumber>
+      </id>
+      <id>
+        <uid>193770</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TE3mCcPULjPUE7ykX7RArDPAhyahoy3d2j</idNumber>
+      </id>
+      <id>
+        <uid>193771</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TF4J8Gp7zbS8NA3HLuxsLdx7Ebzr6weCGn</idNumber>
+      </id>
+      <id>
+        <uid>193772</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TFdHux43bs21qRsygv5WQWfgtbQeT6nXey</idNumber>
+      </id>
+      <id>
+        <uid>193773</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TFrH3dcpnR3tADrAcfyJwiK4brsgf3B7PG</idNumber>
+      </id>
+      <id>
+        <uid>193774</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TFurWgnyNMq9bhLrLoT9FGnrLfAL2BtR5R</idNumber>
+      </id>
+      <id>
+        <uid>193775</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TGDaYNWFXi9HJ7NacfETF15vhUH7eRhKzt</idNumber>
+      </id>
+      <id>
+        <uid>193776</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TGdpkwNVFjw2DnbHBCFKLvCygPVPz9w4iM</idNumber>
+      </id>
+      <id>
+        <uid>193777</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TGKgLatirRpTugS6wgCUKerjLbzWKXAVqx</idNumber>
+      </id>
+      <id>
+        <uid>193778</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TGMFaAXH15oaW8MpcNHLid6NbMKWaaNPdC</idNumber>
+      </id>
+      <id>
+        <uid>193779</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TGpNzk9noyvCCdnFPuSg5cqptPs16LjXZq</idNumber>
+      </id>
+      <id>
+        <uid>193780</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TGRZZsD8gxahF5oE6C7K8LLRHqQzoPa5bX</idNumber>
+      </id>
+      <id>
+        <uid>193781</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>THEQTsqPhRDDfgcfBW5npH5Lr9PZhpthrf</idNumber>
+      </id>
+      <id>
+        <uid>193782</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>THHb5iMAbZgQYY19h6uY66y5xt6e11gcZC</idNumber>
+      </id>
+      <id>
+        <uid>193783</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>THob8vRrpDybXeqZDj8ukQhMjJVJ5nCbTW</idNumber>
+      </id>
+      <id>
+        <uid>193784</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>THUqqeevBQS3EYordDJKwp8DLFknesnfCD</idNumber>
+      </id>
+      <id>
+        <uid>193785</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TJ812KESWjzJZGEWBPFCu74Js5zQS7jN5A</idNumber>
+      </id>
+      <id>
+        <uid>193786</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TJBg9SxwiUUoqJGk18vK9avxkuV8GrKMK7</idNumber>
+      </id>
+      <id>
+        <uid>193787</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TLRMHPjLGXsVpD9RVzSfat6zDiVDrd4b4w</idNumber>
+      </id>
+      <id>
+        <uid>193788</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TMECKT19hfumcK3KqQKbhxkn1ohyeR58xu</idNumber>
+      </id>
+      <id>
+        <uid>193789</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TMgnRWb9xFMtktny9Lzty21QYLLQD93ft6</idNumber>
+      </id>
+      <id>
+        <uid>193790</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TMiSGhXXVsvJzqwGbwAsGiFxWg2eALZoM5</idNumber>
+      </id>
+      <id>
+        <uid>193791</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TPcUZYthDfxNsHQnZZGBM1BDNBeNSjfPZE</idNumber>
+      </id>
+      <id>
+        <uid>193792</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TPF9UQhqpV18BPWg5xo6MeB3h8t4iEg9gP</idNumber>
+      </id>
+      <id>
+        <uid>193793</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TPo3JyryRcQ3uhBWexeYhtkpMitsUwY4uB</idNumber>
+      </id>
+      <id>
+        <uid>193794</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TPPR7e8hGC57dexrE2jy1f94wtuGyVP6Dp</idNumber>
+      </id>
+      <id>
+        <uid>193795</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TQKQ4ntejdYYJpuYkFz8oCSDoXW6RKRDdY</idNumber>
+      </id>
+      <id>
+        <uid>193796</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TQthYM5nLqwAEr6DScC8tRtw29ncEB53mK</idNumber>
+      </id>
+      <id>
+        <uid>193797</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TR18rEj7gWjKBJLYrowyfnvjWLTTsXGngK</idNumber>
+      </id>
+      <id>
+        <uid>193798</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TRkGqvaobVp4XDNmSceRo5hDcJYDTFmYjd</idNumber>
+      </id>
+      <id>
+        <uid>193799</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TTct1DezYvriNWU7Wi3mygLoskkaw61mra</idNumber>
+      </id>
+      <id>
+        <uid>193800</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TTUqoT6EAmiM1xLvwVwxhjvjaoEUGtKDdZ</idNumber>
+      </id>
+      <id>
+        <uid>193801</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TTzMs5AR66jr9mQMkWfCHVwd3AiLLYPepQ</idNumber>
+      </id>
+      <id>
+        <uid>193802</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TUKsuPVb8kgJVFp5x528KC5HisUVdzxami</idNumber>
+      </id>
+      <id>
+        <uid>193803</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TVDsEFm19zLV8HeXdt6G75rLroxnp6uqpV</idNumber>
+      </id>
+      <id>
+        <uid>193804</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TVu2SiQrWSnfwk8quAeDxfiaLy6FHzYkMA</idNumber>
+      </id>
+      <id>
+        <uid>193805</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TVyiDQ25H6Rx6PcNV1WyjGasGSa8ehj1Uv</idNumber>
+      </id>
+      <id>
+        <uid>193806</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TW3RgbhYkFEFnmRJ9mE9b83T9XYSMkjwuD</idNumber>
+      </id>
+      <id>
+        <uid>193807</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TWwv8FQiES3yHGig7y3zJWYuPaZfSV3vmY</idNumber>
+      </id>
+      <id>
+        <uid>193808</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TXc4kRiMEcdXRxWpSKkD5qKaARExN4uxPq</idNumber>
+      </id>
+      <id>
+        <uid>193809</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TXFUYHVJMDyKikutvCG6qNgTUS5pxtZhHs</idNumber>
+      </id>
+      <id>
+        <uid>193810</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TYD6a4PAAfAgegEdDf9oZUnW4DFmS8jeFT</idNumber>
+      </id>
+      <id>
+        <uid>193811</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TYK29mbyvVxLaLUKdFSTRADMwoxaVbVZQg</idNumber>
+      </id>
+      <id>
+        <uid>193812</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>TYxwUhoLPF7AgfG9GaXFEp8CQi8K8KG1m3</idNumber>
+      </id>
+      <id>
+        <uid>135149</uid>
+        <idType>Transactions Prohibited For Persons Owned or Controlled By U.S. Financial Institutions:</idType>
+        <idNumber>North Korea Sanctions Regulations section 510.214</idNumber>
+      </id>
+      <id>
+        <uid>127945</uid>
+        <idType>Secondary sanctions risk:</idType>
+        <idNumber>North Korea Sanctions Regulations, sections 510.201 and 510.210</idNumber>
+      </id>
+      <id>
+        <uid>124511</uid>
+        <idType>SWIFT/BIC</idType>
+        <idNumber>KYCBKPPY</idNumber>
+      </id>
+    </idList>
+    <akaList>
+      <aka>
+        <uid>36096</uid>
+        <type>a.k.a.</type>
+        <category>strong</category>
+        <lastName>FIRST CREDIT BANK</lastName>
+      </aka>
+      <aka>
+        <uid>36097</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>KYONGYONG CREDIT BANK</lastName>
+      </aka>
+    </akaList>
+    <addressList>
+      <address>
+        <uid>34671</uid>
+        <address1>3-18 Pyongyang Information Center</address1>
+        <address2>Potonggang District</address2>
+        <city>Pyongyang</city>
+        <country>Korea, North</country>
+      </address>
+      <address>
+        <uid>34672</uid>
+        <city>Beijing</city>
+        <country>China</country>
+      </address>
+      <address>
+        <uid>34673</uid>
+        <city>Shenyang</city>
+        <country>China</country>
+      </address>
+      <address>
+        <uid>34674</uid>
+        <city>Shanghai</city>
+        <country>China</country>
+      </address>
+    </addressList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>45404</uid>
+    <firstName>Mingming</firstName>
+    <lastName>WANG</lastName>
+    <sdnType>Individual</sdnType>
+    <remarks>(Linked To: HEBEI GUANLANG BIOTECHNOLOGY CO., LTD.)</remarks>
+    <programList>
+      <program>ILLICIT-DRUGS-EO14059</program>
+    </programList>
+    <idList>
+      <id>
+        <uid>35155</uid>
+        <idType>National ID No.</idType>
+        <idNumber>130531198903120212</idNumber>
+        <idCountry>China</idCountry>
+      </id>
+      <id>
+        <uid>165919</uid>
+        <idType>Gender</idType>
+        <idNumber>Male</idNumber>
+      </id>
+      <id>
+        <uid>165920</uid>
+        <idType>Digital Currency Address - XBT</idType>
+        <idNumber>1MLPqwaFFUBZePTjpR3nxRoK19Cv9mPCc7</idNumber>
+      </id>
+      <id>
+        <uid>165923</uid>
+        <idType>Digital Currency Address - XBT</idType>
+        <idNumber>3HePkztPU6UsdENxnyQHFrdZA6eVKeMtvz</idNumber>
+      </id>
+      <id>
+        <uid>165924</uid>
+        <idType>Digital Currency Address - XBT</idType>
+        <idNumber>TUCsTq7TofTCJRRoHk6RvhMoS2mJLm5Yzq</idNumber>
+      </id>
+      <id>
+        <uid>165925</uid>
+        <idType>Digital Currency Address - USDT</idType>
+        <idNumber>0xfac583c0cf07ea434052c49115a4682172ab6b4f</idNumber>
+      </id>
+    </idList>
+    <addressList>
+      <address>
+        <uid>67574</uid>
+        <address1>No. 509 Fengjiazhai Village</address1>
+        <address2>Fengjiazhai Township</address2>
+        <address3>Guangzong County</address3>
+        <city>Xingtai City</city>
+        <stateOrProvince>Hebei</stateOrProvince>
+        <country>China</country>
+      </address>
+    </addressList>
+    <nationalityList>
+      <nationality>
+        <uid>65918</uid>
+        <country>China</country>
+        <mainEntry>true</mainEntry>
+      </nationality>
+    </nationalityList>
+    <citizenshipList>
+      <citizenship>
+        <uid>65916</uid>
+        <country>China</country>
+        <mainEntry>true</mainEntry>
+      </citizenship>
+    </citizenshipList>
+    <dateOfBirthList>
+      <dateOfBirthItem>
+        <uid>65910</uid>
+        <dateOfBirth>12 Mar 1989</dateOfBirth>
+        <mainEntry>true</mainEntry>
+      </dateOfBirthItem>
+    </dateOfBirthList>
+    <placeOfBirthList>
+      <placeOfBirthItem>
+        <uid>65913</uid>
+        <placeOfBirth>Hebei, China</placeOfBirth>
+        <mainEntry>true</mainEntry>
+      </placeOfBirthItem>
+    </placeOfBirthList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>36</uid>
+    <lastName>AEROCARIBBEAN AIRLINES</lastName>
+    <sdnType>Entity</sdnType>
+    <programList>
+      <program>CUBA</program>
+    </programList>
+    <akaList>
+      <aka>
+        <uid>12</uid>
+        <type>a.k.a.</type>
+        <category>strong</category>
+        <lastName>AERO-CARIBBEAN</lastName>
+      </aka>
+    </akaList>
+    <addressList>
+      <address>
+        <uid>25</uid>
+        <city>Havana</city>
+        <country>Cuba</country>
+      </address>
+    </addressList>
+  </sdnEntry>
+</sdnList>

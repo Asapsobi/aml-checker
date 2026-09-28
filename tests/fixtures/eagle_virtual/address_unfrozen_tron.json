@@ -1,0 +1,624 @@
+{
+ "address": "TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ",
+ "address_display": "TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ",
+ "address_family": "tron",
+ "verdict": "UNFROZEN",
+ "verdict_reason": null,
+ "as_of": 1790594055,
+ "checked_at": 1790594099,
+ "record_count": 1,
+ "coverage": {
+  "chains_claimed": 41,
+  "chains_vouched": 41,
+  "as_of": 1790594055,
+  "not_vouched_for": [],
+  "chains": [
+   {
+    "chain_id": "1",
+    "name": "Ethereum",
+    "last_scanned_block": 26075527,
+    "last_scanned_at": 1790594036,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "10",
+    "name": "Optimism",
+    "last_scanned_block": 157497551,
+    "last_scanned_at": 1790594006,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "100",
+    "name": "Gnosis",
+    "last_scanned_block": 48481382,
+    "last_scanned_at": 1790594022,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000144",
+    "name": "XRP Ledger",
+    "last_scanned_block": 107291467,
+    "last_scanned_at": 1790594047,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000148",
+    "name": "Stellar",
+    "last_scanned_block": 277709119321378800,
+    "last_scanned_at": 1790594048,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000195",
+    "name": "Tron",
+    "last_scanned_block": 86640516,
+    "last_scanned_at": 1790594053,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 1,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000397",
+    "name": "NEAR",
+    "last_scanned_block": 217624167,
+    "last_scanned_at": 1790593997,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000501",
+    "name": "Solana",
+    "last_scanned_block": 451302250,
+    "last_scanned_at": 1790594004,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000607",
+    "name": "TON",
+    "last_scanned_block": 95602079,
+    "last_scanned_at": 1790593995,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000637",
+    "name": "Aptos",
+    "last_scanned_block": 7395560702,
+    "last_scanned_at": 1790593994,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000784",
+    "name": "Sui",
+    "last_scanned_block": 327871884,
+    "last_scanned_at": 1790594029,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000009004",
+    "name": "Starknet",
+    "last_scanned_block": 15567781,
+    "last_scanned_at": 1790594009,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "130",
+    "name": "Unichain",
+    "last_scanned_block": 59845599,
+    "last_scanned_at": 1790594022,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1329",
+    "name": "Sei",
+    "last_scanned_block": 234580827,
+    "last_scanned_at": 1790594008,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "137",
+    "name": "Polygon",
+    "last_scanned_block": 94592587,
+    "last_scanned_at": 1790594024,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "143",
+    "name": "Monad",
+    "last_scanned_block": 108736257,
+    "last_scanned_at": 1790594013,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "146",
+    "name": "Sonic",
+    "last_scanned_block": 80029882,
+    "last_scanned_at": 1790594016,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1672",
+    "name": "Pharos",
+    "last_scanned_block": 18806280,
+    "last_scanned_at": 1790594048,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1776",
+    "name": "Injective",
+    "last_scanned_block": 184941702,
+    "last_scanned_at": 1790594004,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "196",
+    "name": "X Layer",
+    "last_scanned_block": 71824912,
+    "last_scanned_at": 1790594012,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "25",
+    "name": "Cronos",
+    "last_scanned_block": 96682278,
+    "last_scanned_at": 1790593999,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "324",
+    "name": "zkSync Era",
+    "last_scanned_block": 72251288,
+    "last_scanned_at": 1790594031,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "36900",
+    "name": "Adi",
+    "last_scanned_block": 1463766,
+    "last_scanned_at": 1790594053,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "42161",
+    "name": "Arbitrum",
+    "last_scanned_block": 509685938,
+    "last_scanned_at": 1790594052,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "4217",
+    "name": "Tempo",
+    "last_scanned_block": 41634953,
+    "last_scanned_at": 1790594039,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "42220",
+    "name": "Celo",
+    "last_scanned_block": 78693193,
+    "last_scanned_at": 1790594015,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "43114",
+    "name": "Avalanche",
+    "last_scanned_block": 96319987,
+    "last_scanned_at": 1790594004,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "4326",
+    "name": "MegaETH",
+    "last_scanned_block": 27796970,
+    "last_scanned_at": 1790594045,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "4663",
+    "name": "Robinhood Chain",
+    "last_scanned_block": 74752409,
+    "last_scanned_at": 1790593995,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "480",
+    "name": "World Chain",
+    "last_scanned_block": 35629116,
+    "last_scanned_at": 1790593999,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "5000",
+    "name": "Mantle",
+    "last_scanned_block": 101231785,
+    "last_scanned_at": 1790594009,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "5042",
+    "name": "Arc",
+    "last_scanned_block": 23189513,
+    "last_scanned_at": 1790594011,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "56",
+    "name": "BNB Chain",
+    "last_scanned_block": 124514777,
+    "last_scanned_at": 1790594008,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "57073",
+    "name": "Ink",
+    "last_scanned_block": 57095547,
+    "last_scanned_at": 1790594022,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "59144",
+    "name": "Linea",
+    "last_scanned_block": 32169762,
+    "last_scanned_at": 1790594029,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "80094",
+    "name": "Berachain",
+    "last_scanned_block": 26789638,
+    "last_scanned_at": 1790593996,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "8217",
+    "name": "Kaia",
+    "last_scanned_block": 228392489,
+    "last_scanned_at": 1790593996,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "8453",
+    "name": "Base",
+    "last_scanned_block": 51902279,
+    "last_scanned_at": 1790594033,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "9745",
+    "name": "Plasma",
+    "last_scanned_block": 33653020,
+    "last_scanned_at": 1790594035,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "988",
+    "name": "Stable",
+    "last_scanned_block": 41054995,
+    "last_scanned_at": 1790593999,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "999",
+    "name": "HyperEVM",
+    "last_scanned_block": 47109763,
+    "last_scanned_at": 1790594024,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   }
+  ]
+ },
+ "url": "https://eaglevirtual.com/address/TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ",
+ "restriction_records": [
+  {
+   "event_id": "c69f008832a9e9c953ba46a671a6b4dd",
+   "subject_address": "TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ",
+   "chain_id": "1000000000195",
+   "chain_name": "Tron",
+   "token": {
+    "symbol": "USDT",
+    "name": "Tether USD",
+    "canonical_id": "usdt",
+    "contract": "0xa614f803b6fd780986a42c78ec9c7f77e6ded13c",
+    "contract_note": null
+   },
+   "company": "Tether",
+   "event": {
+    "signature": "AddedBlackList(address)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 86613172,
+   "tx_hash": "c743e8f463596d2803c9240f903302821fc178bfd8c6652c8eb9590365c2cbfe",
+   "observed_at": 1790511945,
+   "observed": "2026-09-27T12:25:45Z",
+   "amount": {
+    "value": "99874.117384",
+    "raw": "99874117384",
+    "decimals": 6,
+    "unit": "USDT",
+    "measured": true,
+    "measured_zero": false,
+    "basis": "balance_at_event",
+    "note": "The on-chain event that restricted this wallet recorded no amount. We measured the balance the wallet held in the block the event was recorded in, and that is the figure shown."
+   },
+   "usd": {
+    "cents": 9987411,
+    "formatted": "$99,874.11",
+    "basis": "peg",
+    "basis_note": "US-dollar peg, priced 1:1 from the quantity recorded"
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "usdt",
+    "asset_name": "Tether USD",
+    "asset_symbol": "USDT",
+    "issuer_id": "tether",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "USD"
+   }
+  },
+  {
+   "event_id": "derived-release",
+   "subject_address": "TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ",
+   "chain_id": "1000000000195",
+   "chain_name": "Tron",
+   "token": {
+    "symbol": "USDT",
+    "name": "Tether USD",
+    "canonical_id": "usdt",
+    "contract": "0xa614f803b6fd780986a42c78ec9c7f77e6ded13c",
+    "contract_note": null
+   },
+   "company": "Tether",
+   "event": {
+    "signature": "RemovedBlackList(address)",
+    "kind": "Unfreeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": true
+   },
+   "block_number": 86700000,
+   "tx_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "observed_at": 1790700000,
+   "observed": "2026-09-30T00:00:00Z",
+   "amount": {
+    "value": "99874.117384",
+    "raw": "99874117384",
+    "decimals": 6,
+    "unit": "USDT",
+    "measured": true,
+    "measured_zero": false,
+    "basis": "balance_at_event",
+    "note": "The on-chain event that restricted this wallet recorded no amount. We measured the balance the wallet held in the block the event was recorded in, and that is the figure shown."
+   },
+   "usd": {
+    "cents": 9987411,
+    "formatted": "$99,874.11",
+    "basis": "peg",
+    "basis_note": "US-dollar peg, priced 1:1 from the quantity recorded"
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "usdt",
+    "asset_name": "Tether USD",
+    "asset_symbol": "USDT",
+    "issuer_id": "tether",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "USD"
+   }
+  }
+ ],
+ "name": null,
+ "limitations": {
+  "id": "limitations-2026-08-30",
+  "url": "https://eaglevirtual.com/address/TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ#ev-report-limits-title"
+ }
+}

@@ -9,6 +9,7 @@ import json
 import os
 import tomllib
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -78,9 +79,26 @@ class Bsc(_Section):
     usdt_contract: str = "0x55d398326f99059fF775485246999027B3197955"
 
 
+class Network(_Section):
+    timeout_seconds: float = Field(default=30.0, gt=0)
+    # A longer Retry-After is not waited out: the source is reported as failed instead (AT-07).
+    max_retry_after_seconds: float = Field(default=10.0, ge=0)
+
+
+class Rules(_Section):
+    """Severity overrides by rule ID (PRD §5.2). R-SYS-01 is not among them: a missing or
+    outdated source always makes the result INCOMPLETE (PRD §0 rule 4)."""
+
+    severity: dict[Literal["R-SAN-01", "R-FRZ-01", "R-FRZ-02"], Literal["BLOCK", "REVIEW"]] = Field(
+        default_factory=dict
+    )
+
+
 class Config(_Section):
     freshness: Freshness = Freshness()
     cache: Cache = Cache()
+    network: Network = Network()
+    rules: Rules = Rules()
     ofac: Ofac = Ofac()
     eagle_virtual: EagleVirtual = EagleVirtual()
     tron: Tron = Tron()
