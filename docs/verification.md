@@ -13,7 +13,7 @@ Providers change: re-check an item before a later phase depends on it.
 | V1 | OFAC SDN download | Official Sanctions List Service URLs work without a key. The list published 2026-09-23 holds 1,059 digital currency addresses | Confirmed |
 | V2 | Chainalysis free sanctions API | The API still answers, but its sign-up page now leads to a paid product | **Not available to new users** |
 | V3 | OpenSanctions licence | Free for non-commercial use only | Confirmed, not free for this project |
-| V4 | Eagle Virtual | API, Free plan limits and licence terms match the PRD. BSC coverage can only be seen with a key | **BSC coverage pending a key** |
+| V4 | Eagle Virtual | API, Free plan limits and licence terms match the PRD. BSC (BNB Chain) and TRON are both covered | Confirmed |
 | V5 | TRON USDT contract and events | Address, the three event names and `isBlackListed` confirmed live | Confirmed |
 | V6 | BSC USDT freeze capability | The contract has no freeze, blacklist or pause function | **Finding: it cannot freeze** |
 | V7 | TronGrid | Endpoints confirmed. Limits are set per key and not published | Confirmed |
@@ -106,21 +106,34 @@ stays out unless a licence is bought.
 | Spec is public | Confirmed |
 | Business plan for event lists and volume | Confirmed: 5 keys, each 25,000 checks a day at 10 a second. Event rows need Business or Enterprise |
 | Resale or bundling needs a written agreement | Confirmed. So do bulk republishing, building a dataset and training a model. Bundling means "building it into another product or data feed you supply", which matters for PRD Q4 |
-| BSC appears in `GET /v1/chains` | **Not verified.** `/v1/chains` answers `401 missing_key` without a key, and the spec never mentions BSC, BNB or Binance |
+| BSC appears in `GET /v1/chains` | Confirmed with the owner's key: `{"chain_id": "56", "name": "BNB Chain", "vouched_for": true}`, scanned to the current block. TRON is covered as `"Tron"` (chain id `1000000000195`). 41 chains in all, every one vouched for at the time |
 
-**Also found:**
+**Checked live** with the owner's Free plan key, using 4 of the day's 1,000 calls:
 
-- `/v1/check` returns `address`, `address_display`, `address_family` (`evm`, `tron`, `solana` or
+- The credit line reads `Data from Eagle Virtual, https://eaglevirtual.com/license`.
+- `GET /v1/usage` returns `plan`, `calls_today`, `daily_limit`, `requests_per_second`,
+  `credit_line_required` and `credit_line`. It costs nothing and resets at midnight UTC. On the Free
+  plan the counter is per account and shared with Eagle Virtual's MCP server. `GET /v1/chains` costs
+  one call. `amlcheck status` can show the usage.
+- `GET /v1/check` returns `address`, `address_display`, `address_family` (`evm`, `tron`, `solana` or
   `stellar`), `verdict`, `verdict_reason`, `as_of` and `checked_at` (UTC seconds), `record_count`,
-  `coverage` and `url`.
-- A `0x` address is checked as a family: one call answers for every EVM chain Eagle Virtual covers,
-  not only BSC (Q2).
-- `GET /v1/usage` reports calls made today against the daily limit, costs nothing and resets at
-  midnight UTC. On the Free plan the counter is per account and shared with Eagle Virtual's MCP
-  server. `amlcheck status` can show it.
-
-**Still to do:** once `EAGLE_VIRTUAL_API_KEY` is set, call `GET /v1/chains` and record whether BSC
-is covered.
+  `coverage` and `url`, as the spec says.
+- The TRON address Tether blacklisted on 2026-09-27 (`TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ`) already
+  reads `FROZEN` with one record. The data is at most a day behind the chain.
+- A `0x` address is checked as a family: one call answers for every EVM chain (Q2). The Lazarus Group
+  address reads `FROZEN` from 122 records on 25 chains. They come from many issuers and tokens, not
+  only Tether and Circle: for example Coinbase (cbBTC), Bridge (pathUSD) and AllUnity (EURAU). On BNB
+  Chain it has freezes of AUSD (Agora), XUSD (StraitsX) and USD0 (Usual). Other stablecoins on BSC
+  can freeze even though BEP20 USDT cannot.
+- `coverage` counts all 41 chains for every address, TRON ones included. A verdict is `null` only
+  when nothing is recorded and some chain could not be vouched for. By Q2, a lagging chain therefore
+  makes an unrecorded address INCOMPLETE even if that chain is unrelated. Phase 1 should log how
+  often this happens.
+- `GET /v1/address/{address}` adds `restriction_records`, one per event, with `chain_id`,
+  `chain_name`, `token` (symbol, name, contract), `company`, `event` (signature, kind, category,
+  `is_seizure`, `is_release`), `block_number`, `tx_hash` and `observed`. It also gives per-chain
+  coverage with freeze, unfreeze and seize counts, and a `limitations` link. These fields supply the
+  evidence for R-FRZ findings, at one extra call and only when the verdict is not CLEAR.
 
 ## V5. TRON USDT contract and blacklist events
 
@@ -188,7 +201,8 @@ Q1.
   Limits are set per key in the TronGrid console, and requests without a key "may be limited by IP".
 - A rate-limited request answers 429 **or 403**.
 
-**Endpoints**, all answering without a key on 2026-09-28:
+**Endpoints**, all answering without a key on 2026-09-28. The owner's key was also accepted (HTTP 200),
+and no rate-limit headers came back:
 
 - `GET /v1/accounts/{address}/transactions/trc20?contract_address=…` returns `transaction_id`,
   `block_timestamp` (ms), `from`, `to`, `value`, `type` and `token_info`. **It has no block number.**
@@ -277,5 +291,5 @@ Phase 1 builds only `audit list` and `audit verify`.
 | Criterion | Status |
 |---|---|
 | `amlcheck --help` runs | Done |
-| CI green | Lint, format, `mypy --strict` and 41 tests pass locally on Python 3.12 and 3.14. GitHub Actions runs them on every push to PR #1 |
-| Verification report complete | Done, except V4's BSC coverage, which needs an Eagle Virtual key |
+| CI green | Done: all 4 jobs (Ubuntu and macOS, Python 3.12 and 3.14) pass on PR #1 |
+| Verification report complete | Done: V1–V8 checked, Q1–Q3, Q6 and Q8 answered. Q4, Q5 and Q7 remain open for Phase 2 |
