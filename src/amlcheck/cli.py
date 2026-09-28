@@ -5,9 +5,11 @@ and exit non-zero rather than pretend to screen anything.
 """
 
 import asyncio
+import csv
 import json
 import sqlite3
 import tomllib
+from collections import Counter
 from contextlib import closing
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
@@ -23,9 +25,8 @@ from rich.progress import DownloadColumn, Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
 
-from amlcheck import __version__, adapters, logs
+from amlcheck import __version__, adapters, labels, logs
 from amlcheck.adapters import ofac, tron
-from amlcheck.adapters.bsc import BscUsdtAdapter
 from amlcheck.config import (
     Config,
     Secrets,
@@ -261,8 +262,14 @@ def _row(label: str, value: str, style: str = "") -> None:
 
 async def _health(conn: sqlite3.Connection, config: Config, secrets: Secrets) -> list[SourceHealth]:
     async with new_client(config.network.timeout_seconds) as http:
-        sources = adapters.build(Chain.tron, conn=conn, http=http, config=config, secrets=secrets)
-        return [await s.health() for s in [*sources, BscUsdtAdapter()]]
+        tron_sources = adapters.build(
+            Chain.tron, conn=conn, http=http, config=config, secrets=secrets
+        )
+        bsc_sources = adapters.build(
+            Chain.bsc, conn=conn, http=http, config=config, secrets=secrets
+        )
+        wanted = [*tron_sources, *(s for s in bsc_sources if s.source in ("bsc_usdt", "exposure"))]
+        return [await s.health() for s in wanted]
 
 
 @app.command()
@@ -431,5 +438,22 @@ def watch_run() -> None:
 def labels_import(
     file: Annotated[Path, typer.Argument(help="CSV with columns address,chain,tag,note,source.")],
 ) -> None:
-    """Load your own labels (mixers, bridges, your own wallets) from a CSV file."""
-    _not_built("labels import", phase=2)
+    """Replace your labels with the ones in a CSV file.
+
+    Tags mixer, bridge and high_risk ([heuristics] risky_tags) raise R-HEU-05. Counterparties
+    tagged allowlist are left out of the behaviour rules. Nothing is imported if any row is wrong.
+    """
+    try:
+        found, problems = labels.read_csv(file)
+    except (OSError, UnicodeDecodeError, csv.Error) as e:
+        _fail(f"{file} could not be read: {e}")
+    if problems:
+        shown = problems[:20] + (
+            [f"... and {len(problems) - 20} more"] if len(problems) > 20 else []
+        )
+        _fail(f"Nothing was imported. Fix these rows in {file}:\n" + "\n".join(shown))
+    with closing(_database()) as conn:
+        labels.replace(conn, found)
+    tags = Counter(label.tag for label in found)
+    listed = ", ".join(f"{tag} {count:,}" for tag, count in tags.most_common())
+    out.print(f"Imported {len(found):,} labels" + (f": {listed}" if listed else ""), soft_wrap=True)

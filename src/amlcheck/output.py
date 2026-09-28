@@ -8,7 +8,7 @@ from rich.table import Table
 from rich.text import Text
 
 from amlcheck.core.clock import iso
-from amlcheck.core.models import CheckResult, Severity, SourceStatus, Verdict
+from amlcheck.core.models import CheckResult, Finding, Severity, SourceStatus, Verdict
 
 VERDICT_STYLE = {
     Verdict.BLOCK: "bold white on red",
@@ -42,6 +42,12 @@ SEVERITY_STYLE = {
 
 def local(moment: datetime) -> str:
     return moment.astimezone().strftime("%Y-%m-%d %H:%M %z")
+
+
+def severity_text(finding: Finding) -> str:
+    """The severity, with "(low)" for a low-priority finding (Q7)."""
+    priority = finding.evidence.get("priority")
+    return f"{finding.severity.value} ({priority})" if priority else finding.severity.value
 
 
 def attributions(result: CheckResult) -> list[str]:
@@ -80,7 +86,7 @@ def render(result: CheckResult, console: Console) -> None:
         for f in result.findings:
             console.print(
                 Text.assemble(
-                    (f" {f.severity.value:<11}", SEVERITY_STYLE[f.severity]),
+                    (f" {severity_text(f):<17}", SEVERITY_STYLE[f.severity]),
                     f"{f.rule_id}  {f.summary}",
                 ),
                 soft_wrap=True,
@@ -113,6 +119,7 @@ def to_json(result: CheckResult) -> dict[str, Any]:
             {
                 "rule_id": f.rule_id,
                 "severity": f.severity.value,
+                "priority": f.evidence.get("priority"),
                 "source": f.source,
                 "summary": f.summary,
                 "evidence": f.evidence,

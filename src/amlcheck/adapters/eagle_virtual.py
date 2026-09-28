@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 from pydantic import SecretStr
 
+from amlcheck.adapters.exposure import LookupFailed
 from amlcheck.config import EagleVirtual
 from amlcheck.core import rules
 from amlcheck.core.clock import from_timestamp
@@ -208,6 +209,21 @@ class EagleVirtualAdapter:
             rule, SOURCE, _describe(verdict, record_count, records), evidence, as_of
         )
         return self._result(SourceStatus.ok, verdict, findings=(found,), **common)
+
+    async def verdict(self, address: str) -> str | None:
+        """The verdict for a counterparty (PRD §11 remote lookups), cached like any answer."""
+        if self._key is None:
+            raise LookupFailed("EAGLE_VIRTUAL_API_KEY is not set")
+        try:
+            answer = await self._answer(
+                f"/v1/check/{address}",
+                self._key,
+                cacheable=lambda body: body.get("verdict") is not None,
+            )
+        except (_Refused, httpx.HTTPError) as e:
+            raise LookupFailed(str(e)) from e
+        verdict = answer.body.get("verdict")
+        return str(verdict) if verdict is not None else None
 
     async def _records(
         self, address: Address, key: SecretStr
