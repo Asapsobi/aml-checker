@@ -1,0 +1,37 @@
+{
+ "transaction": {
+  "raw_data": {
+   "ref_block_bytes": "0782",
+   "ref_block_hash": "50be07570aea32d1",
+   "expiration": 1790594103000,
+   "contract": [
+    {
+     "parameter": {
+      "value": {
+       "owner_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+       "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+       "data": "0e136b19"
+      },
+      "type_url": "type.googleapis.com/protocol.TriggerSmartContract"
+     },
+     "type": "TriggerSmartContract"
+    }
+   ],
+   "timestamp": 1790594043639
+  },
+  "ret": [
+   {}
+  ],
+  "raw_data_hex": "0a020782220850be07570aea32d140d8ede6bd8e345a6d081f12690a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412340a1541a614f803b6fd780986a42c78ec9c7f77e6ded13c121541a614f803b6fd780986a42c78ec9c7f77e6ded13c22040e136b1970f79de3bd8e34",
+  "txID": "bdbba2f1f9302d0f980b4b0d5cd00719f9c5aa98e639bf59808844fa8f605e65",
+  "visible": true
+ },
+ "constant_result": [
+  "0000000000000000000000000000000000000000000000000000000000000000"
+ ],
+ "result": {
+  "result": true
+ },
+ "energy_used": 1771,
+ "energy_penalty": 1363
+}

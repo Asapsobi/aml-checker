@@ -5,9 +5,15 @@ description = "Local AML screening for USDT addresses on TRON and BNB Smart Chai
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "base58>=2.1.1",
+    "defusedxml>=0.7.1",
+    "eth-hash[pycryptodome]>=0.8.0",
+    "eth-utils>=6.0.0",
+    "httpx>=0.28.1",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "rich>=15.0.0",
+    "tenacity>=9.1.4",
     "typer>=0.27.2",
 ]
 
@@ -40,11 +46,16 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [dependency-groups]
 dev = [
     "mypy>=2.3.1",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
+    "respx>=0.23.1",
     "ruff>=0.16.9",
+    "types-defusedxml>=0.7.0.20260504",
 ]

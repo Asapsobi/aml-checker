@@ -1,0 +1,9 @@
+{
+ "plan": "free",
+ "day": "2026-09-28",
+ "calls_today": 4,
+ "daily_limit": 1000,
+ "requests_per_second": 1,
+ "credit_line_required": true,
+ "credit_line": "Data from Eagle Virtual, https://eaglevirtual.com/license"
+}

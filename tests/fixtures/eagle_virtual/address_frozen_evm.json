@@ -1,0 +1,437 @@
+{
+ "address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+ "address_display": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+ "address_family": "evm",
+ "verdict": "FROZEN",
+ "verdict_reason": null,
+ "as_of": 1790593321,
+ "checked_at": 1790593419,
+ "record_count": 122,
+ "coverage": {
+  "chains_claimed": 41,
+  "chains_vouched": 41,
+  "as_of": 1790593321,
+  "not_vouched_for": [],
+  "chains": [
+   {
+    "chain_id": "1",
+    "name": "Ethereum",
+    "last_scanned_block": 26075464,
+    "last_scanned_at": 1790593310,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 39,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "1000000000195",
+    "name": "Tron",
+    "last_scanned_block": 86640253,
+    "last_scanned_at": 1790593264,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 0,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "56",
+    "name": "BNB Chain",
+    "last_scanned_block": 124513148,
+    "last_scanned_at": 1790593275,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 3,
+     "unfreeze": 0
+    }
+   },
+   {
+    "chain_id": "8453",
+    "name": "Base",
+    "last_scanned_block": 51901915,
+    "last_scanned_at": 1790593305,
+    "vouched": true,
+    "counts": {
+     "seize": 0,
+     "freeze": 16,
+     "unfreeze": 0
+    }
+   }
+  ]
+ },
+ "url": "https://eaglevirtual.com/address/0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+ "restriction_records": [
+  {
+   "event_id": "ddfa48563bb20647588918898b89b34a",
+   "subject_address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+   "chain_id": "4217",
+   "chain_name": "Tempo",
+   "token": {
+    "symbol": "pathUSD",
+    "name": "PathUSD",
+    "canonical_id": "tempo_pathusd",
+    "contract": "0x20c0000000000000000000000000000000000000",
+    "contract_note": null
+   },
+   "company": "Bridge",
+   "event": {
+    "signature": "BlacklistUpdated(uint64,address,address,bool)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 40899327,
+   "tx_hash": "0x86e3366c9cdb751d6d63027d1b205032161087a9491c312a644bf794fa1687c0",
+   "observed_at": 1790183938,
+   "observed": "2026-09-23T17:18:58Z",
+   "amount": {
+    "value": "0",
+    "raw": null,
+    "decimals": null,
+    "unit": "pathUSD",
+    "measured": true,
+    "measured_zero": true,
+    "basis": null,
+    "note": "The on-chain event recorded no amount. We measured the balance the wallet held in the block the event was recorded in, at block 40,899,327: 0 pathUSD."
+   },
+   "usd": {
+    "cents": 0,
+    "formatted": "$0.00",
+    "basis": null,
+    "basis_note": "the wallet held none of this coin in the block the event was recorded in, so the value is $0.00",
+    "measured_zero": true
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "pathusd",
+    "asset_name": "PathUSD",
+    "asset_symbol": "pathUSD",
+    "issuer_id": "bridge",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "USD"
+   }
+  },
+  {
+   "event_id": "f784f1b4879bd2b24953790defe3af70",
+   "subject_address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+   "chain_id": "5042",
+   "chain_name": "Arc",
+   "token": {
+    "symbol": "CHFAU",
+    "name": "AllUnity Swiss Franc",
+    "canonical_id": "arc_chfau",
+    "contract": "0xc6df1b92a6ae61a27059c41e541a91ce8dcb1605",
+    "contract_note": null
+   },
+   "company": "AllUnity",
+   "event": {
+    "signature": "RoleGranted(bytes32,address,address)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 21140328,
+   "tx_hash": "0x18ca9fa8c4af5f1b07d9fc3faaec3fa77a89d8bbe514f15f56d1cb992070d21d",
+   "observed_at": 1789553137,
+   "observed": "2026-09-16T10:05:37Z",
+   "amount": {
+    "value": "0",
+    "raw": null,
+    "decimals": null,
+    "unit": "CHFAU",
+    "measured": true,
+    "measured_zero": true,
+    "basis": null,
+    "note": "The on-chain event recorded no amount. We measured the balance the wallet held in the block the event was recorded in, at block 21,140,328: 0 CHFAU."
+   },
+   "usd": {
+    "cents": 0,
+    "formatted": "$0.00",
+    "basis": null,
+    "basis_note": "the wallet held none of this coin in the block the event was recorded in, so the value is $0.00",
+    "measured_zero": true
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "chfau",
+    "asset_name": "AllUnity Swiss Franc",
+    "asset_symbol": "CHFAU",
+    "issuer_id": "allunity",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "CHF"
+   }
+  },
+  {
+   "event_id": "230cb0b5502561cf567e000abfc5fff0",
+   "subject_address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+   "chain_id": "4217",
+   "chain_name": "Tempo",
+   "token": {
+    "symbol": "USDY",
+    "name": "Ondo US Dollar Yield",
+    "canonical_id": "tempo_usdy",
+    "contract": "0x20c000000000000000000000d479b9f6ec0ceff9",
+    "contract_note": null
+   },
+   "company": "Ondo Finance",
+   "event": {
+    "signature": "BlacklistUpdated(uint64,address,address,bool)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 35386734,
+   "tx_hash": "0x11fe74efd9256e188ba4faae3247666ee4174afd906e8559388724d47a366ed3",
+   "observed_at": 1787077851,
+   "observed": "2026-08-18T18:30:51Z",
+   "amount": null,
+   "usd": null,
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "usdy",
+    "asset_name": "Ondo US Dollar Yield",
+    "asset_symbol": "USDY",
+    "issuer_id": "ondo-finance",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": null
+   }
+  },
+  {
+   "event_id": "c6528f4d784ee981982e06b9d79416f8",
+   "subject_address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+   "chain_id": "1",
+   "chain_name": "Ethereum",
+   "token": {
+    "symbol": "XUSD",
+    "name": "XUSD",
+    "canonical_id": "ethereum_xusd",
+    "contract": "0xc08e7e23c235073c6807c2efe7021304cb7c2815",
+    "contract_note": null
+   },
+   "company": "StraitsX",
+   "event": {
+    "signature": "Blacklisted(address)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 25636751,
+   "tx_hash": "0xf1fc531ddda3be27b2d1a9696a99843d1f4ee3dee9f8b46def6065c9bd1f664d",
+   "observed_at": 1785307199,
+   "observed": "2026-07-29T06:39:59Z",
+   "amount": {
+    "value": "0",
+    "raw": null,
+    "decimals": null,
+    "unit": "XUSD",
+    "measured": true,
+    "measured_zero": true,
+    "basis": null,
+    "note": "The on-chain event recorded no amount. We measured the balance the wallet held in the block the event was recorded in, at block 25,636,751: 0 XUSD."
+   },
+   "usd": {
+    "cents": 0,
+    "formatted": "$0.00",
+    "basis": null,
+    "basis_note": "the wallet held none of this coin in the block the event was recorded in, so the value is $0.00",
+    "measured_zero": true
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "xusd",
+    "asset_name": "XUSD",
+    "asset_symbol": "XUSD",
+    "issuer_id": "straitsx",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "USD"
+   }
+  },
+  {
+   "event_id": "c6ac795553577ef5e5462bd277b8fb20",
+   "subject_address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+   "chain_id": "196",
+   "chain_name": "X Layer",
+   "token": {
+    "symbol": "USDC",
+    "name": "USD Coin",
+    "canonical_id": "xlayer_usdc",
+    "contract": "0xb6ceceab302e2e4948951ee7843fc24e92933061",
+    "contract_note": null
+   },
+   "company": "Circle",
+   "event": {
+    "signature": "Blacklisted(address)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 66400174,
+   "tx_hash": "0x1ebacc6b1025773c5a20ca8dba69e6e8fa3d97c21a98c8a4095764ea8d2176de",
+   "observed_at": 1785169210,
+   "observed": "2026-07-27T16:20:10Z",
+   "amount": {
+    "value": "0",
+    "raw": null,
+    "decimals": null,
+    "unit": "USDC",
+    "measured": true,
+    "measured_zero": true,
+    "basis": null,
+    "note": "The on-chain event recorded no amount. We measured the balance the wallet held in the block the event was recorded in, at block 66,400,174: 0 USDC."
+   },
+   "usd": {
+    "cents": 0,
+    "formatted": "$0.00",
+    "basis": null,
+    "basis_note": "the wallet held none of this coin in the block the event was recorded in, so the value is $0.00",
+    "measured_zero": true
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "usdc",
+    "asset_name": "USD Coin",
+    "asset_symbol": "USDC",
+    "issuer_id": "circle",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "USD"
+   }
+  },
+  {
+   "event_id": "974ea36b446e6c2d9a5dc07ede64020d",
+   "subject_address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+   "chain_id": "1",
+   "chain_name": "Ethereum",
+   "token": {
+    "symbol": "XSGD",
+    "name": "StraitsX Singapore Dollar",
+    "canonical_id": "xsgd",
+    "contract": "0x70e8de73ce538da2beed35d14187f6959a8eca96",
+    "contract_note": null
+   },
+   "company": "StraitsX",
+   "event": {
+    "signature": "Blacklisted(address)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 25586471,
+   "tx_hash": "0x848ad6b1eccdf1d7c8c2e8d5dec540b472a6b56a3572123d2c1f36c18119a340",
+   "observed_at": 1784701583,
+   "observed": "2026-07-22T06:26:23Z",
+   "amount": {
+    "value": "0",
+    "raw": null,
+    "decimals": null,
+    "unit": "XSGD",
+    "measured": true,
+    "measured_zero": true,
+    "basis": null,
+    "note": "The on-chain event recorded no amount. We measured the balance the wallet held in the block the event was recorded in, at block 25,586,471: 0 XSGD."
+   },
+   "usd": {
+    "cents": 0,
+    "formatted": "$0.00",
+    "basis": null,
+    "basis_note": "the wallet held none of this coin in the block the event was recorded in, so the value is $0.00",
+    "measured_zero": true
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "xsgd",
+    "asset_name": "StraitsX Singapore Dollar",
+    "asset_symbol": "XSGD",
+    "issuer_id": "straitsx",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "SGD"
+   }
+  },
+  {
+   "event_id": "d2f7f6c201a44c21a79ce777bae3bbf0",
+   "subject_address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+   "chain_id": "4217",
+   "chain_name": "Tempo",
+   "token": {
+    "symbol": "EURAU",
+    "name": "AllUnity Euro",
+    "canonical_id": "tempo_eurau",
+    "contract": "0x20c0000000000000000000009a4a4b17e0dc6651",
+    "contract_note": null
+   },
+   "company": "AllUnity",
+   "event": {
+    "signature": "BlacklistUpdated(uint64,address,address,bool)",
+    "kind": "Freeze",
+    "category": "blacklist",
+    "is_seizure": false,
+    "is_release": false
+   },
+   "block_number": 27540069,
+   "tx_hash": "0x70936803a0925383776a289c36dcd3a20577e68a758db14c580f804c20882b32",
+   "observed_at": 1782720557,
+   "observed": "2026-06-29T08:09:17Z",
+   "amount": {
+    "value": "0",
+    "raw": null,
+    "decimals": null,
+    "unit": "EURAU",
+    "measured": true,
+    "measured_zero": true,
+    "basis": null,
+    "note": "The on-chain event recorded no amount. We measured the balance the wallet held in the block the event was recorded in, at block 27,540,069: 0 EURAU."
+   },
+   "usd": {
+    "cents": 0,
+    "formatted": "$0.00",
+    "basis": null,
+    "basis_note": "the wallet held none of this coin in the block the event was recorded in, so the value is $0.00",
+    "measured_zero": true
+   },
+   "already_restricted": null,
+   "scope": null,
+   "decision_group": null,
+   "identity": {
+    "asset_id": "eurau",
+    "asset_name": "AllUnity Euro",
+    "asset_symbol": "EURAU",
+    "issuer_id": "allunity",
+    "issuer_kind": "issuer",
+    "deployment_kind": "native",
+    "peg": "EUR"
+   }
+  }
+ ],
+ "name": null,
+ "limitations": {
+  "id": "limitations-2026-08-30",
+  "url": "https://eaglevirtual.com/address/0x098B716B8Aaf21512996dC57EB0615e2383E2f96#ev-report-limits-title"
+ }
+}

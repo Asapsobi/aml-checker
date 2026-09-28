@@ -1,0 +1,17 @@
+{
+ "address": "TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ",
+ "address_display": "TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ",
+ "address_family": "tron",
+ "verdict": "UNFROZEN",
+ "verdict_reason": null,
+ "as_of": 1790593321,
+ "checked_at": 1790593421,
+ "record_count": 1,
+ "coverage": {
+  "chains_claimed": 41,
+  "chains_vouched": 41,
+  "as_of": 1790593321,
+  "not_vouched_for": []
+ },
+ "url": "https://eaglevirtual.com/address/TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ"
+}

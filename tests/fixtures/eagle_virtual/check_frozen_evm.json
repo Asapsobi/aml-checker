@@ -1,0 +1,17 @@
+{
+ "address": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+ "address_display": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+ "address_family": "evm",
+ "verdict": "FROZEN",
+ "verdict_reason": null,
+ "as_of": 1790593321,
+ "checked_at": 1790593418,
+ "record_count": 122,
+ "coverage": {
+  "chains_claimed": 41,
+  "chains_vouched": 41,
+  "as_of": 1790593321,
+  "not_vouched_for": []
+ },
+ "url": "https://eaglevirtual.com/address/0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
+}

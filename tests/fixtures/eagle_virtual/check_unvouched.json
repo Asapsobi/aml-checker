@@ -1,0 +1,24 @@
+{
+ "address": "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW",
+ "address_display": "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW",
+ "address_family": "tron",
+ "verdict": null,
+ "verdict_reason": "coverage_unvouched",
+ "as_of": 1790593842,
+ "checked_at": 1790593884,
+ "record_count": 0,
+ "coverage": {
+  "chains_claimed": 41,
+  "chains_vouched": 40,
+  "as_of": 1790593842,
+  "not_vouched_for": [
+   {
+    "chain_id": "137",
+    "name": "Polygon",
+    "last_verified_block": 94590000,
+    "reason": "scan behind"
+   }
+  ]
+ },
+ "url": "https://eaglevirtual.com/address/TJwwz9NR37hjXdAV5gowj7src4avMuZZNW"
+}

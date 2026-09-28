@@ -13,6 +13,19 @@ tron_index_max_lag_minutes = 60
 # How long a result for the screened address is reused. Errors are never cached (PRD §11).
 target_ttl_seconds = 900
 
+[network]
+# How long to wait for any single API request.
+timeout_seconds = 30.0
+# When an API asks to "retry after N seconds", wait if N is at most this. Otherwise report the
+# source as failed (the result becomes INCOMPLETE) instead of stalling the check.
+max_retry_after_seconds = 10.0
+
+[rules]
+# Change a rule's severity (PRD §5.2), for example: severity = { "R-FRZ-02" = "BLOCK" }
+# Only R-SAN-01, R-FRZ-01 and R-FRZ-02 can change, to BLOCK or REVIEW. R-SYS-01 is fixed: a
+# missing or outdated source always makes the result INCOMPLETE.
+severity = {}
+
 [ofac]
 # Official OFAC Sanctions List Service download (see docs/verification.md).
 sdn_url = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML"

@@ -1,0 +1,4 @@
+{
+ "error": "invalid_key",
+ "message": "This API key is not active. Check for a copy mistake, or rotate the key on https://eaglevirtual.com/account."
+}
