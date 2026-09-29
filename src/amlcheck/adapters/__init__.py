@@ -19,7 +19,7 @@ from amlcheck.config import Config, Secrets
 from amlcheck.core.clock import utcnow
 from amlcheck.core.models import Chain
 from amlcheck.exposure.history import BscHistory, HistorySource, TronHistory
-from amlcheck.net import Sleep
+from amlcheck.net import RateLimiter, Sleep
 from amlcheck.storage.cache import ResponseCache
 
 BSC_HISTORY_MISSING = (
@@ -49,6 +49,7 @@ def build(
     secrets: Secrets,
     now: Callable[[], datetime] = utcnow,
     sleep: Sleep = asyncio.sleep,
+    eagle_limiter: RateLimiter | None = None,
 ) -> list[SourceAdapter]:
     cache = ResponseCache(conn, config.cache.target_ttl_seconds, now)
     eagle = EagleVirtualAdapter(
@@ -58,6 +59,7 @@ def build(
         cache,
         max_retry_after=config.network.max_retry_after_seconds,
         sleep=sleep,
+        limiter=eagle_limiter,
     )
     sources: list[SourceAdapter] = [
         OfacAdapter(conn, timedelta(hours=config.freshness.sanctions_max_age_hours), now),

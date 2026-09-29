@@ -40,6 +40,7 @@ async def screen(
     config: Config,
     amount: str | None = None,
     note: str | None = None,
+    client: str | None = None,
     timeout: float = 60.0,
     now: Callable[[], datetime] = utcnow,
 ) -> CheckResult:
@@ -59,6 +60,7 @@ async def screen(
         config_hash=config.hash(),
         amount_hint=amount,
         operator_note=note,
+        client=client,
     )
     record_hash = audit.append(conn, result)
     log.info(

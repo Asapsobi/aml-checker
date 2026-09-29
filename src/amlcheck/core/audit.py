@@ -1,14 +1,18 @@
 """The audit log: append-only and hash-chained (PRD §9 "Audit integrity").
 
 record_hash = sha256(prev_hash + canonical_json(check + sources + findings)). Nothing in the code
-updates or deletes a record. `verify` recomputes every hash in order and names the first record
-that no longer matches, which catches a changed, removed or inserted record. Cutting records off
-the end cannot be seen from inside the file, so `verify` also reports the latest hash to keep.
+updates or deletes a record. A check's client (Phase 3, Q13) is hashed only when it is set, so the
+records written before it existed hash exactly as they did.
+
+`verify` recomputes every hash in order and names the first record that no longer matches, which
+catches a changed, removed or inserted record. Cutting records off the end cannot be seen from
+inside the file, so `verify` also reports the latest hash to keep.
 """
 
 import hashlib
 import json
 import sqlite3
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -62,6 +66,8 @@ def to_rows(result: CheckResult) -> tuple[Row, list[Row], list[Row]]:
         "tool_version": result.tool_version,
         "config_hash": result.config_hash,
     }
+    if result.client is not None:
+        check["client"] = result.client
     sources = [
         {
             "source": s.source,
@@ -97,10 +103,10 @@ def append(conn: sqlite3.Connection, result: CheckResult) -> str:
         new_hash = record_hash(prev_hash, check, sources, findings)
         conn.execute(
             "INSERT INTO checks (check_id, created_at, address_norm, chain, verdict, amount_hint,"
-            " operator_note, tool_version, config_hash, prev_hash, record_hash)"
+            " operator_note, tool_version, config_hash, client, prev_hash, record_hash)"
             " VALUES (:check_id, :created_at, :address_norm, :chain, :verdict, :amount_hint,"
-            " :operator_note, :tool_version, :config_hash, :prev_hash, :record_hash)",
-            {**check, "prev_hash": prev_hash, "record_hash": new_hash},
+            " :operator_note, :tool_version, :config_hash, :client, :prev_hash, :record_hash)",
+            {**check, "client": result.client, "prev_hash": prev_hash, "record_hash": new_hash},
         )
         conn.executemany(
             "INSERT INTO check_sources (check_id, source, required, status, as_of, summary,"
@@ -122,6 +128,73 @@ def append(conn: sqlite3.Connection, result: CheckResult) -> str:
 
 
 @dataclass(frozen=True)
+class Stored:
+    """One record exactly as stored, in the form its hash covers."""
+
+    seq: int
+    check: Row
+    sources: list[Row]
+    findings: list[Row]
+    prev_hash: str
+    record_hash: str
+
+    def recomputed(self) -> str:
+        return record_hash(self.prev_hash, self.check, self.sources, self.findings)
+
+
+def records(
+    conn: sqlite3.Connection,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+    address: str | None = None,
+    verdict: str | None = None,
+    client: str | None = None,
+    check_id: str | None = None,
+) -> Iterator[Stored]:
+    """Stored records, oldest first: all of them, or those created in [start, end) (ISO times)
+    for an address, a verdict or a client (ignoring case), or one check."""
+    query = conn.execute(
+        "SELECT seq, check_id, created_at, address_norm, chain, verdict, amount_hint,"
+        " operator_note, tool_version, config_hash, client, prev_hash, record_hash FROM checks"
+        " WHERE (:start IS NULL OR created_at >= :start) AND (:end IS NULL OR created_at < :end)"
+        " AND (:address IS NULL OR address_norm = :address)"
+        " AND (:verdict IS NULL OR verdict = :verdict)"
+        " AND (:client IS NULL OR client = :client COLLATE NOCASE)"
+        " AND (:check_id IS NULL OR check_id = :check_id) ORDER BY seq",
+        {
+            "start": start,
+            "end": end,
+            "address": address,
+            "verdict": verdict,
+            "client": client,
+            "check_id": check_id,
+        },
+    )
+    for seq, *values, client_name, prev_hash, stored_hash in query.fetchall():
+        check = dict(zip(CHECK_FIELDS, values, strict=True))
+        if client_name is not None:
+            check["client"] = client_name
+        sources = [
+            dict(zip(SOURCE_FIELDS, row, strict=True))
+            for row in conn.execute(
+                "SELECT source, required, status, as_of, summary, evidence_meta_json"
+                " FROM check_sources WHERE check_id = ?",
+                (check["check_id"],),
+            )
+        ]
+        findings = [
+            dict(zip(FINDING_FIELDS, row, strict=True))
+            for row in conn.execute(
+                "SELECT rule_id, severity, source, summary, evidence_json, observed_at"
+                " FROM check_findings WHERE check_id = ?",
+                (check["check_id"],),
+            )
+        ]
+        yield Stored(seq, check, sources, findings, prev_hash, stored_hash)
+
+
+@dataclass(frozen=True)
 class Verification:
     records: int
     head: str
@@ -137,35 +210,14 @@ class Verification:
 def verify(conn: sqlite3.Connection) -> Verification:
     expected_prev = GENESIS
     count = 0
-    for seq, *values, prev_hash, stored_hash in conn.execute(
-        "SELECT seq, check_id, created_at, address_norm, chain, verdict, amount_hint,"
-        " operator_note, tool_version, config_hash, prev_hash, record_hash"
-        " FROM checks ORDER BY seq"
-    ):
-        check = dict(zip(CHECK_FIELDS, values, strict=True))
-        check_id = check["check_id"]
-        if prev_hash != expected_prev:
+    for record in records(conn):
+        check_id = record.check["check_id"]
+        if record.prev_hash != expected_prev:
             reason = "its link to the record before it is broken: a record was removed or inserted"
-            return Verification(count, expected_prev, seq, check_id, reason)
-        sources = [
-            dict(zip(SOURCE_FIELDS, row, strict=True))
-            for row in conn.execute(
-                "SELECT source, required, status, as_of, summary, evidence_meta_json"
-                " FROM check_sources WHERE check_id = ?",
-                (check_id,),
-            )
-        ]
-        findings = [
-            dict(zip(FINDING_FIELDS, row, strict=True))
-            for row in conn.execute(
-                "SELECT rule_id, severity, source, summary, evidence_json, observed_at"
-                " FROM check_findings WHERE check_id = ?",
-                (check_id,),
-            )
-        ]
-        if record_hash(prev_hash, check, sources, findings) != stored_hash:
+            return Verification(count, expected_prev, record.seq, check_id, reason)
+        if record.recomputed() != record.record_hash:
             reason = "its contents changed after it was written"
-            return Verification(count, expected_prev, seq, check_id, reason)
-        expected_prev = stored_hash
+            return Verification(count, expected_prev, record.seq, check_id, reason)
+        expected_prev = record.record_hash
         count += 1
     return Verification(count, expected_prev)

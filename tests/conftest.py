@@ -1,7 +1,7 @@
 import json
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -9,9 +9,12 @@ from typing import Any
 import httpx
 import pytest
 import respx
+from typer.testing import CliRunner
 
+from amlcheck.cli import app
 from amlcheck.config import Ofac
 from amlcheck.core.address import tron_from_hex
+from amlcheck.core.clock import utcnow
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TRONGRID = "https://api.trongrid.io"
@@ -163,11 +166,14 @@ class TronGridMock:
 
 
 class EagleVirtualMock:
-    """Eagle Virtual answering CLEAR for any address, unless `answers` says otherwise."""
+    """Eagle Virtual answering CLEAR for any address, unless `answers` says otherwise. With a
+    `clock`, it keeps the time of every call in `times`."""
 
-    def __init__(self, network: respx.MockRouter) -> None:
+    def __init__(self, network: respx.MockRouter, clock: Callable[[], float] | None = None) -> None:
         # address -> (the /v1/check fixture, the /v1/address fixture)
         self.answers: dict[str, tuple[str, str]] = {}
+        self.clock = clock
+        self.times: list[float] = []
         network.get(url__regex=rf"{EAGLE_VIRTUAL}/v1/check/(?P<address>\w+)").mock(
             side_effect=self._check
         )
@@ -177,6 +183,8 @@ class EagleVirtualMock:
         network.get(f"{EAGLE_VIRTUAL}/v1/usage").respond(200, json=load("eagle_virtual/usage.json"))
 
     def _reply(self, fixture: str) -> httpx.Response:
+        if self.clock is not None:
+            self.times.append(self.clock())
         return httpx.Response(200, json=load(fixture), headers={"x-ev-credit-line": CREDIT_LINE})
 
     def _check(self, request: httpx.Request, address: str) -> httpx.Response:
@@ -336,3 +344,64 @@ class HyperSyncMock:
             },
             next_block,
         )
+
+
+# The command line's world, shared by the CLI and web tests.
+CHEIL_TRON = "TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz"  # on the OFAC sample list as USDT
+CLEAN_TRON = "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW"  # given an ordinary, years-old history below
+NEVER_USED = "TWWfj8kFnxwJr34hn1sw57rCHXSKercQsb"
+CLEAN_BSC = "0x7a3f9c2e8b1d4f6a0c5e9b2d7f1a3c8e6b4d2f90"
+LAZARUS = "0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
+LAZARUS_NEIGHBOUR = "0x098b716b8aaf21512996dc57eb0615e2383e2f97"  # one digit off: not listed
+USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+FROZEN_TRON = (
+    "eagle_virtual/check_frozen_tron.json",
+    "eagle_virtual/address_frozen_tron.json",
+)
+
+runner = CliRunner()
+
+
+@dataclass
+class Services:
+    tron: TronGridMock
+    eagle: EagleVirtualMock
+    hypersync: HyperSyncMock
+
+
+@pytest.fixture
+def services(
+    network: respx.MockRouter, isolated: Path, monkeypatch: pytest.MonkeyPatch
+) -> Services:
+    """Mocked OFAC, TronGrid and Eagle Virtual, a key for Eagle Virtual, and no rate limit
+    to wait out: the CLI runs on the real clock, so the TRON index head is "now"."""
+    mock_ofac(network)
+    monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "ev_live_test")
+    monkeypatch.setenv("HYPERSYNC_API_TOKEN", HYPERSYNC_TOKEN)
+    isolated.mkdir(exist_ok=True)
+    (isolated / "config.toml").write_text("[eagle_virtual]\nrequests_per_second = 1000\n")
+    now = utcnow()
+    tron = TronGridMock(network, head_time=now)
+    tron.add_history(
+        CLEAN_TRON,
+        [
+            transfer_row("in", now - timedelta(days=10), USDT_CONTRACT, CLEAN_TRON, "1000"),
+            transfer_row("out", now - timedelta(days=5), CLEAN_TRON, CHEIL_TRON[:-1] + "a", "100"),
+        ],
+        created=now - timedelta(days=700),
+    )
+    tron.move_histories(now)
+    hypersync = HyperSyncMock(network, int(now.timestamp()))
+    hypersync.transfers = [
+        bsc_transfer("0xin", now - timedelta(days=10), LAZARUS_NEIGHBOUR, CLEAN_BSC, "1000"),
+        bsc_transfer("0xout", now - timedelta(days=5), CLEAN_BSC, LAZARUS_NEIGHBOUR, "100"),
+    ]
+    hypersync.first_tx[CLEAN_BSC] = int((now - timedelta(days=700)).timestamp())
+    return Services(tron, EagleVirtualMock(network), hypersync)
+
+
+@pytest.fixture
+def synced(services: Services) -> Services:
+    result = runner.invoke(app, ["sync"])
+    assert result.exit_code == 0, result.output
+    return services

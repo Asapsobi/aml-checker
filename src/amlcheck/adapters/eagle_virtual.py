@@ -24,6 +24,9 @@ from amlcheck.storage.cache import ResponseCache
 
 SOURCE = "eagle_virtual"
 LABEL = "Eagle Virtual"
+# The credit line the Free plan sends in x-ev-credit-line (V4). Records written before the line was
+# kept with them are credited with this text.
+CREDIT_LINE = "Data from Eagle Virtual, https://eaglevirtual.com/license"
 EVIDENCE_RECORDS = 5
 REFUSALS = {
     400: "Eagle Virtual cannot check this address",
@@ -105,12 +108,14 @@ class EagleVirtualAdapter:
         *,
         max_retry_after: float,
         sleep: Sleep = asyncio.sleep,
+        limiter: RateLimiter | None = None,
     ) -> None:
         self._http = http
         self._key = key
         self._settings = settings
         self._cache = cache
-        self._limiter = RateLimiter(settings.requests_per_second, sleep=sleep)
+        # A batch passes one limiter to every check, so the plan's rate holds across them all.
+        self._limiter = limiter or RateLimiter(settings.requests_per_second, sleep=sleep)
         self._max_retry_after = max_retry_after
         self._sleep = sleep
 
@@ -176,6 +181,8 @@ class EagleVirtualAdapter:
                 "not_vouched_for": coverage.get("not_vouched_for") or [],
                 "url": body.get("url"),
                 "cached": answer.cached,
+                # Kept with the record, so an export can credit the data as the licence asks (V4).
+                "credit_line": answer.credit_line,
             },
         }
         if verdict is None:

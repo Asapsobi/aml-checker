@@ -1,0 +1,26 @@
+{% if error %}
+<p class="error">{{ error }}</p>
+{% elif result %}
+<section class="result">
+  <p><span class="verdict verdict-{{ result.verdict.value | lower }}">{{ result.verdict.value }}</span> {{ meaning[result.verdict] }}</p>
+  <p><a href="{{ explorer(result.address.chain.value, result.address.display) }}" target="_blank" rel="noopener noreferrer">{{ result.address.display }}</a> ({{ result.address.chain.value | upper }}){% if result.client %} · client {{ result.client }}{% endif %} · {{ local(result.created_at) }}</p>
+  <table>
+    <thead><tr><th>Source</th><th>Status</th><th>As of</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for s in result.sources %}
+      <tr><td>{{ s.label }}</td><td class="status-{{ s.status.value }}">{{ s.status.value }}</td><td>{{ s.as_of_text or local(s.as_of) }}</td><td>{{ s.summary }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if result.findings %}
+  <h2>Findings</h2>
+  <ul class="findings">
+    {% for f in result.findings %}
+    <li><span class="severity severity-{{ f.severity.value | lower }}">{{ f.severity.value }}{% if f.evidence.get('priority') %} ({{ f.evidence.get('priority') }}){% endif %}</span> {{ f.rule_id }} {{ f.summary }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <p><a href="/checks/{{ result.check_id }}">Details, evidence and explorer links</a> · check {{ result.check_id }}</p>
+  {% for line in credits or [] %}<p class="credit">{{ line }}</p>{% endfor %}
+</section>
+{% endif %}

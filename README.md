@@ -10,11 +10,12 @@ It combines sanctions lists, stablecoin issuer freeze/seize history, on-chain ex
 
 - [PRD & Roadmap](docs/PRD.md) — scope, verdict model, data sources, architecture, phased roadmap and acceptance tests. **AI coding agents: read §0 first.**
 - [Verification report](docs/verification.md) — every data source checked against the live service, the decisions taken, and the open questions.
-- [Acceptance tests](docs/acceptance.md) — where each PRD acceptance test is covered, and the live Phase 1 results.
+- [Acceptance tests](docs/acceptance.md) — where each PRD acceptance test is covered, and the live results of each phase.
+- [Scheduling](docs/scheduling.md) — re-screening the watchlist every day with launchd (macOS) or cron (Linux).
 
 ## Status
 
-Phases 0 and 1 are done; Phase 2 is done for TRON. `amlcheck check` screens an address against:
+Phases 0 to 3 are done. `amlcheck check` screens an address against:
 
 - the OFAC SDN list
 - Eagle Virtual's record of stablecoin freezes
@@ -38,7 +39,7 @@ The first `sync` takes a few minutes, mostly the OFAC download. Settings go in `
 ## Use
 
 ```bash
-uv run amlcheck check TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz --amount 50000 --note "new OTC client"
+uv run amlcheck check TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz --amount 50000 --client "ACME Ltd" --note "new OTC client"
 ```
 
 | Verdict | Meaning | Exit status |
@@ -51,11 +52,47 @@ uv run amlcheck check TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz --amount 50000 --note "
 `check` exits with 1 when it could not run at all, for example because of an invalid address. Add `--json` for the machine-readable result. Every check is written to the audit log before its result is shown:
 
 ```bash
-uv run amlcheck audit list --from 2026-09-01 --verdict block
+uv run amlcheck audit list --from 2026-09-01 --verdict block --client "acme ltd"
 uv run amlcheck audit verify
 ```
 
 Run `amlcheck sync sanctions` every day: a list more than 48 hours old makes every result INCOMPLETE. The TRON blacklist index refreshes itself on every check.
+
+### Many addresses at once
+
+Put the addresses in a CSV file with an `address` column; `chain`, `amount`, `note` and `client` are optional, and other columns are ignored:
+
+```bash
+uv run amlcheck batch new-wallets.csv --out results.csv --client "ACME Ltd"
+```
+
+Every row is checked first, and nothing is screened if any row is wrong. The addresses are then screened one at a time, within every free plan's rate limit, and each result is written to `results.csv` as soon as it is ready. The exit status is the worst verdict found.
+
+### Re-screening approved addresses
+
+```bash
+uv run amlcheck watch add TJwwz9NR37hjXdAV5gowj7src4avMuZZNW --client "ACME Ltd"
+uv run amlcheck watch list
+uv run amlcheck watch run
+```
+
+`watch run` screens every watched address again and reports each verdict that changed: in a table, in the audit log, with exit status 6, and on macOS with a notification. [docs/scheduling.md](docs/scheduling.md) sets it to run every day.
+
+### Exporting the audit log
+
+```bash
+uv run amlcheck audit export --from 2026-09-01 --to 2026-09-30 --client "ACME Ltd" --format pdf --out acme-september.pdf
+```
+
+`--format` is `csv`, `json` or `pdf`. JSON keeps every record exactly as stored, with its hashes, so anyone can check them again. JSON and PDF say whether the whole audit log verified at export time.
+
+### The web page
+
+```bash
+uv run amlcheck web
+```
+
+This opens a page in your browser with a check form, the history of checks, and each check's details with links to Tronscan and BscScan. It runs on `127.0.0.1` only, so no other computer can reach it; stop it with Ctrl+C.
 
 ### Your own labels
 

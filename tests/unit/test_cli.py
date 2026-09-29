@@ -1,47 +1,38 @@
+import csv
+import io
 import json
 import runpy
 import sqlite3
 import sys
 from contextlib import closing
-from dataclasses import dataclass
-from datetime import timedelta
 from pathlib import Path
 
 import pytest
 import respx
 from conftest import (
     BLACKLISTED,
+    CHEIL_TRON,
+    CLEAN_BSC,
+    CLEAN_TRON,
     CREDIT_LINE,
+    FROZEN_TRON,
     FUNNEL,
-    HYPERSYNC_TOKEN,
-    EagleVirtualMock,
-    HyperSyncMock,
+    LAZARUS,
+    NEVER_USED,
+    Services,
     TronGridMock,
-    bsc_transfer,
     load,
     mock_ofac,
-    transfer_row,
 )
+from pypdf import PdfReader
 from typer.testing import CliRunner
 
-from amlcheck import __version__, cli
+from amlcheck import __version__, cli, watchlist
 from amlcheck.cli import app
 from amlcheck.core.clock import utcnow
 from amlcheck.storage import db
 
 runner = CliRunner()
-
-CHEIL_TRON = "TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz"  # on the OFAC sample list as USDT
-CLEAN_TRON = "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW"  # given an ordinary, years-old history below
-NEVER_USED = "TWWfj8kFnxwJr34hn1sw57rCHXSKercQsb"
-CLEAN_BSC = "0x7a3f9c2e8b1d4f6a0c5e9b2d7f1a3c8e6b4d2f90"
-LAZARUS = "0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
-LAZARUS_NEIGHBOUR = "0x098b716b8aaf21512996dc57eb0615e2383e2f97"  # one digit off: not listed
-USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
-FROZEN_TRON = (
-    "eagle_virtual/check_frozen_tron.json",
-    "eagle_virtual/address_frozen_tron.json",
-)
 
 
 def line_for(output: str, label: str) -> str:
@@ -53,51 +44,6 @@ def wide_console(monkeypatch: pytest.MonkeyPatch) -> None:
     """The runner has no terminal, so Rich would fold long addresses at 80 columns."""
     for console in (cli.out, cli.err):
         monkeypatch.setattr(console, "width", 250)
-
-
-@dataclass
-class Services:
-    tron: TronGridMock
-    eagle: EagleVirtualMock
-    hypersync: HyperSyncMock
-
-
-@pytest.fixture
-def services(
-    network: respx.MockRouter, isolated: Path, monkeypatch: pytest.MonkeyPatch
-) -> Services:
-    """Mocked OFAC, TronGrid and Eagle Virtual, a key for Eagle Virtual, and no rate limit
-    to wait out: the CLI runs on the real clock, so the TRON index head is "now"."""
-    mock_ofac(network)
-    monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "ev_live_test")
-    monkeypatch.setenv("HYPERSYNC_API_TOKEN", HYPERSYNC_TOKEN)
-    isolated.mkdir(exist_ok=True)
-    (isolated / "config.toml").write_text("[eagle_virtual]\nrequests_per_second = 1000\n")
-    now = utcnow()
-    tron = TronGridMock(network, head_time=now)
-    tron.add_history(
-        CLEAN_TRON,
-        [
-            transfer_row("in", now - timedelta(days=10), USDT_CONTRACT, CLEAN_TRON, "1000"),
-            transfer_row("out", now - timedelta(days=5), CLEAN_TRON, CHEIL_TRON[:-1] + "a", "100"),
-        ],
-        created=now - timedelta(days=700),
-    )
-    tron.move_histories(now)
-    hypersync = HyperSyncMock(network, int(now.timestamp()))
-    hypersync.transfers = [
-        bsc_transfer("0xin", now - timedelta(days=10), LAZARUS_NEIGHBOUR, CLEAN_BSC, "1000"),
-        bsc_transfer("0xout", now - timedelta(days=5), CLEAN_BSC, LAZARUS_NEIGHBOUR, "100"),
-    ]
-    hypersync.first_tx[CLEAN_BSC] = int((now - timedelta(days=700)).timestamp())
-    return Services(tron, EagleVirtualMock(network), hypersync)
-
-
-@pytest.fixture
-def synced(services: Services) -> Services:
-    result = runner.invoke(app, ["sync"])
-    assert result.exit_code == 0, result.output
-    return services
 
 
 def test_help_lists_every_prd_command() -> None:
@@ -121,23 +67,6 @@ def test_python_dash_m_runs_the_same_cli(
         runpy.run_module("amlcheck", run_name="__main__")
     assert exited.value.code == 0
     assert __version__ in capsys.readouterr().out
-
-
-@pytest.mark.parametrize(
-    ("args", "phase"),
-    [
-        (["batch", "addresses.csv"], 3),
-        (["audit", "export"], 3),
-        (["watch", "add", CLEAN_TRON], 3),
-        (["watch", "remove", CLEAN_TRON], 3),
-        (["watch", "list"], 3),
-        (["watch", "run"], 3),
-    ],
-)
-def test_later_phase_commands_fail_instead_of_pretending(args: list[str], phase: int) -> None:
-    result = runner.invoke(app, args)
-    assert result.exit_code == 1
-    assert f"planned for Phase {phase}" in result.output
 
 
 def test_sync_builds_the_list_and_the_index(synced: Services) -> None:
@@ -208,6 +137,146 @@ def test_bsc_with_a_refused_token_is_incomplete_and_says_why(
     assert result.exit_code == 4, result.output
     assert "HyperSync answered HTTP 401: Your token is malformed" in result.output
     assert "hs-not-a-real-token" not in result.output
+
+
+def test_batch_screens_every_row_and_writes_the_results(synced: Services, tmp_path: Path) -> None:
+    source = tmp_path / "clients.csv"
+    source.write_text(
+        "Address,Chain,Amount,Note,Client,Name\n"
+        f"{CHEIL_TRON},,,,,Cheil\n"
+        f'{CLEAN_TRON},tron,"1,000",first deal,,Alice\n'
+        "\n"
+        f"{CLEAN_BSC},bsc,,,Other Ltd,Bob\n"
+    )
+    results = tmp_path / "results.csv"
+    run = ["batch", str(source), "--out", str(results), "--client", "ACME"]
+    result = runner.invoke(app, run)
+    assert result.exit_code == 5, result.output  # the worst verdict: BLOCK
+    assert "Screened 3 addresses: 1 BLOCK, 2 NO_HITS." in result.output
+    assert CREDIT_LINE in result.output
+    with results.open(newline="") as file:
+        written = list(csv.DictReader(file))
+    assert [(r["line"], r["verdict"], r["client"]) for r in written] == [
+        ("2", "BLOCK", "ACME"),
+        ("3", "NO_HITS", "ACME"),
+        ("5", "NO_HITS", "Other Ltd"),
+    ]
+    assert written[0]["findings"].startswith("R-SAN-01")
+    assert written[1]["amount"] == "1000"
+    listed = runner.invoke(app, ["audit", "list", "--client", "acme"]).output
+    for row in written[:2]:
+        assert row["check_id"] in listed
+    assert runner.invoke(app, ["audit", "verify"]).exit_code == 0
+
+
+def test_batch_screens_nothing_when_a_row_is_wrong(synced: Services, tmp_path: Path) -> None:
+    source = tmp_path / "clients.csv"
+    source.write_text(f"address,chain\n{CHEIL_TRON},tron\n{CLEAN_BSC},tron\n")
+    result = runner.invoke(app, ["batch", str(source)])
+    assert result.exit_code == 1
+    assert "Nothing was screened" in result.output
+    assert "line 3:" in result.output
+    assert "No checks match." in runner.invoke(app, ["audit", "list"]).output
+
+
+@pytest.fixture
+def notices(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
+    """Notifications `watch run` would show, recorded instead of shown."""
+    shown: list[tuple[str, str]] = []
+
+    def record(title: str, message: str) -> bool:
+        shown.append((title, message))
+        return True
+
+    monkeypatch.setattr(watchlist, "notify", record)
+    return shown
+
+
+def test_the_watchlist_starts_from_the_audit_log(synced: Services) -> None:
+    assert runner.invoke(app, ["check", CHEIL_TRON]).exit_code == 5
+    added = runner.invoke(app, ["watch", "add", CHEIL_TRON, "--client", "ACME"]).output
+    assert f"Watching {CHEIL_TRON} (TRON): last verdict BLOCK" in added
+    fresh = runner.invoke(app, ["watch", "add", CLEAN_TRON]).output
+    assert "not checked yet" in fresh
+    again = runner.invoke(app, ["watch", "add", CLEAN_TRON, "--note", "approved 2026-09"]).output
+    assert "Already watched, details updated" in again
+    listed = runner.invoke(app, ["watch", "list"]).output
+    assert "ACME" in line_for(listed, CHEIL_TRON)
+    assert "approved 2026-09" in line_for(listed, CLEAN_TRON)
+    assert runner.invoke(app, ["watch", "remove", CLEAN_TRON]).exit_code == 0
+    gone = runner.invoke(app, ["watch", "remove", CLEAN_TRON])
+    assert gone.exit_code == 1
+    assert "is not on the watchlist" in gone.output
+
+
+def test_watch_run_reports_a_changed_verdict(
+    synced: Services, isolated: Path, notices: list[tuple[str, str]]
+) -> None:
+    (isolated / "config.toml").write_text(
+        "[eagle_virtual]\nrequests_per_second = 1000\n[cache]\ntarget_ttl_seconds = 0\n"
+    )
+    assert "The watchlist is empty" in runner.invoke(app, ["watch", "run"]).output
+    runner.invoke(app, ["watch", "add", CLEAN_TRON, "--client", "ACME"])
+    first = runner.invoke(app, ["watch", "run"])
+    assert first.exit_code == 0, first.output
+    assert "first check" in line_for(first.output, CLEAN_TRON)
+    assert "no verdict changed" in first.output
+    same = runner.invoke(app, ["watch", "run"])
+    assert same.exit_code == 0, same.output
+    synced.eagle.answers[CLEAN_TRON] = FROZEN_TRON  # Tether froze it since the last run
+    changed = runner.invoke(app, ["watch", "run"])
+    assert changed.exit_code == 6, changed.output
+    row = line_for(changed.output, CLEAN_TRON).split()
+    assert row[2:5] == ["NO_HITS", "BLOCK", "changed"]
+    assert "1 verdict changed" in changed.output
+    assert notices == [("amlcheck: 1 verdict changed", f"{CLEAN_TRON[:10]}… NO_HITS → BLOCK")]
+    listed = runner.invoke(app, ["watch", "list"]).output
+    assert "BLOCK" in line_for(listed, CLEAN_TRON)
+    checks = runner.invoke(app, ["audit", "list", "--client", "ACME"]).output
+    assert checks.count("watchlist re-screen") == 3
+    quiet = runner.invoke(app, ["watch", "run", "--no-notify"])
+    assert quiet.exit_code == 0  # BLOCK again: no change
+    assert len(notices) == 1
+
+
+def test_audit_export_in_every_format(synced: Services, tmp_path: Path) -> None:
+    runner.invoke(app, ["check", CHEIL_TRON, "--client", "ACME"])
+    runner.invoke(app, ["check", CLEAN_TRON, "--client", "Other"])
+    shown = runner.invoke(app, ["audit", "export", "--client", "acme"])
+    assert shown.exit_code == 0, shown.output
+    rows = list(csv.DictReader(io.StringIO(shown.stdout)))
+    assert [(r["address"], r["verdict"], r["client"]) for r in rows] == [
+        (CHEIL_TRON, "BLOCK", "ACME")
+    ]
+    saved = tmp_path / "audit.json"
+    written = runner.invoke(app, ["audit", "export", "--format", "json", "--out", str(saved)])
+    assert written.exit_code == 0, written.output
+    data = json.loads(saved.read_text())
+    assert [r["check"]["client"] for r in data["records"]] == ["ACME", "Other"]
+    assert data["audit_log"]["intact"]
+    assert data["attribution"] == [CREDIT_LINE]
+    refused = runner.invoke(app, ["audit", "export", "--format", "pdf"])
+    assert refused.exit_code == 1
+    assert "--format pdf needs --out" in refused.output
+    pdf = tmp_path / "audit.pdf"
+    made = runner.invoke(app, ["audit", "export", "--format", "pdf", "--out", str(pdf)])
+    assert made.exit_code == 0, made.output
+    text = PdfReader(pdf).pages[0].extract_text()
+    assert CHEIL_TRON in text
+    assert "Audit log intact at export: 2 records" in text
+
+
+def test_audit_export_of_a_tampered_log_says_so(
+    synced: Services, isolated: Path, tmp_path: Path
+) -> None:
+    runner.invoke(app, ["check", CHEIL_TRON])
+    with closing(sqlite3.connect(isolated / "amlcheck.db")) as conn, conn:
+        conn.execute("UPDATE checks SET verdict = 'NO_HITS'")
+    saved = tmp_path / "audit.json"
+    result = runner.invoke(app, ["audit", "export", "--format", "json", "--out", str(saved)])
+    assert result.exit_code == 1
+    assert "The audit log is BROKEN" in result.output
+    assert json.loads(saved.read_text())["audit_log"]["intact"] is False
 
 
 def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:
@@ -326,9 +395,10 @@ def test_audit_list_stays_readable_in_a_narrow_terminal(
     synced: Services, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No address or check ID may be split across lines: people copy them."""
-    assert runner.invoke(app, ["check", CHEIL_TRON, "--note", "new client"]).exit_code == 5
+    args = ["check", CHEIL_TRON, "--note", "new client", "--client", "ACME"]
+    assert runner.invoke(app, args).exit_code == 5
     wide = runner.invoke(app, ["audit", "list"]).output
-    header = ["Time", "Verdict", "Chain", "Address", "Check", "Amount", "Note"]
+    header = ["Time", "Verdict", "Chain", "Address", "Check", "Client", "Amount", "Note"]
     assert wide.splitlines()[0].split() == header
     monkeypatch.setattr(cli.out, "width", 60)
     lines = runner.invoke(app, ["audit", "list"]).output.splitlines()
@@ -336,7 +406,27 @@ def test_audit_list_stays_readable_in_a_narrow_terminal(
     assert lines[1] == CHEIL_TRON
     assert lines[2].startswith("check ")
     assert len(lines[2].removeprefix("check ")) == 36
-    assert lines[3] == "note: new client"
+    assert lines[3] == "client ACME  note: new client"
+
+
+def test_a_check_can_name_its_client(synced: Services) -> None:
+    result = runner.invoke(app, ["check", CHEIL_TRON, "--client", "  ACME Ltd ", "--json"])
+    assert result.exit_code == 5, result.output
+    assert json.loads(result.output)["client"] == "ACME Ltd"
+    assert runner.invoke(app, ["check", NEVER_USED]).exit_code == 3
+    listed = runner.invoke(app, ["audit", "list", "--client", "acme ltd"]).output
+    assert CHEIL_TRON in listed
+    assert NEVER_USED not in listed
+    assert "No checks match." in runner.invoke(app, ["audit", "list", "--client", "Other"]).output
+    shown = runner.invoke(app, ["check", CHEIL_TRON, "--client", "ACME Ltd"]).output
+    assert line_for(shown, "Client").split(maxsplit=1)[1] == "ACME Ltd"
+    assert runner.invoke(app, ["audit", "verify"]).exit_code == 0
+
+
+def test_a_client_name_that_is_too_long_is_refused(synced: Services) -> None:
+    result = runner.invoke(app, ["check", CHEIL_TRON, "--client", "x" * 201])
+    assert result.exit_code == 1
+    assert "--client is longer than 200 characters" in result.output
 
 
 @pytest.mark.parametrize("args", [["--verdict", "maybe"], ["--from", "2026-13-01"]])
@@ -411,6 +501,13 @@ def test_labels_import_takes_nothing_from_a_file_with_a_bad_row(
     assert "line 6: the chain must be tron or bsc, not 'eth'" in result.output
     with closing(sqlite3.connect(isolated / "amlcheck.db")) as conn:
         assert conn.execute("SELECT COUNT(*) FROM labels").fetchone()[0] == 3
+
+
+def test_labels_import_names_the_file_line_past_blank_lines(tmp_path: Path) -> None:
+    path = tmp_path / "labels.csv"
+    path.write_text(LABELS + "\n\nTJwwz9NR37hjXdAV5gowj7src4avMuZZNW,eth,mixer,,\n")
+    result = runner.invoke(app, ["labels", "import", str(path)])
+    assert "line 7: the chain must be tron or bsc, not 'eth'" in result.output
 
 
 def test_labels_import_needs_the_header(tmp_path: Path) -> None:
