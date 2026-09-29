@@ -14,13 +14,14 @@ It combines sanctions lists, stablecoin issuer freeze/seize history, on-chain ex
 
 ## Status
 
-Phase 1 (MVP screening) is done. `amlcheck check` screens an address against three sources:
+Phases 0 and 1 are done; Phase 2 is done for TRON. `amlcheck check` screens an address against:
 
 - the OFAC SDN list
 - Eagle Virtual's record of stablecoin freezes
 - on TRON, Tether's USDT blacklist
+- the address's own USDT transfers over 180 days: who it dealt with (R-EXP) and how it moved money (R-HEU)
 
-Phase 2 (exposure and heuristics) needs answers to Q4, Q5 and Q7 in the verification report.
+On BSC, the transfer history comes from Envio HyperSync and needs a free token: create one at https://envio.dev/app/api-tokens and set `HYPERSYNC_API_TOKEN` (Q4 in the verification report). Without it, a BSC check ends INCOMPLETE.
 
 ## Setup
 
@@ -55,6 +56,16 @@ uv run amlcheck audit verify
 ```
 
 Run `amlcheck sync sanctions` every day: a list more than 48 hours old makes every result INCOMPLETE. The TRON blacklist index refreshes itself on every check.
+
+### Your own labels
+
+Keep known addresses in a CSV file with the columns `address,chain,tag,note,source`, then load it:
+
+```bash
+uv run amlcheck labels import labels.csv
+```
+
+Each import replaces all earlier labels, and imports nothing if any row is wrong. The tags `mixer`, `bridge` and `high_risk` raise R-HEU-05 when the screened address dealt with that address. The tag `allowlist`, for your own or known wallets, leaves that address out of the behaviour rules, though never out of a sanctions or freeze finding.
 
 ## Development
 

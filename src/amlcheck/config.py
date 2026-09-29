@@ -77,6 +77,9 @@ class Tron(_Section):
 
 class Bsc(_Section):
     usdt_contract: str = "0x55d398326f99059fF775485246999027B3197955"
+    # Envio HyperSync, for the transfer history (docs/verification.md, V12). The same service also
+    # answers at https://56.hypersync.xyz.
+    hypersync_url: str = "https://bsc.hypersync.xyz"
 
 
 class Network(_Section):
@@ -85,13 +88,52 @@ class Network(_Section):
     max_retry_after_seconds: float = Field(default=10.0, ge=0)
 
 
+OverridableRule = Literal[
+    "R-SAN-01",
+    "R-FRZ-01",
+    "R-FRZ-02",
+    "R-EXP-01",
+    "R-EXP-02",
+    "R-HEU-01",
+    "R-HEU-02",
+    "R-HEU-03",
+    "R-HEU-04",
+    "R-HEU-05",
+]
+
+
 class Rules(_Section):
     """Severity overrides by rule ID (PRD §5.2). R-SYS-01 is not among them: a missing or
     outdated source always makes the result INCOMPLETE (PRD §0 rule 4)."""
 
-    severity: dict[Literal["R-SAN-01", "R-FRZ-01", "R-FRZ-02"], Literal["BLOCK", "REVIEW"]] = Field(
-        default_factory=dict
-    )
+    severity: dict[OverridableRule, Literal["BLOCK", "REVIEW"]] = Field(default_factory=dict)
+
+
+class Exposure(_Section):
+    """The 1-hop scan of the address's USDT transfers (PRD §5.2, R-EXP-01 and R-EXP-02)."""
+
+    lookback_days: int = Field(default=180, gt=0)
+    # More transfers than this in the lookback make the result INCOMPLETE, so a clean result never
+    # rests on part of the history (decided 2026-09-28, docs/verification.md).
+    max_transfers: int = Field(default=5000, gt=0)
+    flagged_inflow_share: float = Field(default=0.05, gt=0, le=1)
+
+
+class Heuristics(_Section):
+    """R-HEU-01 to R-HEU-05 (PRD §5.2, thresholds from Q7). Every heuristic is a REVIEW."""
+
+    new_address_days: int = Field(default=7, gt=0)
+    pass_through_share: float = Field(default=0.9, gt=0, le=1)
+    pass_through_hours: int = Field(default=24, gt=0)
+    fan_in_senders: int = Field(default=50, gt=0)
+    fan_in_small_usdt: float = Field(default=100, gt=0)
+    fan_in_window_hours: int = Field(default=24, gt=0)
+    fan_out_recipients: int = Field(default=50, gt=0)
+    fan_out_window_hours: int = Field(default=24, gt=0)
+    risky_tags: tuple[str, ...] = ("mixer", "bridge", "high_risk")
+    # Counterparties with this tag in labels.csv are left out of R-HEU-02 to R-HEU-04. They never
+    # cancel a sanctions or freeze finding (decided 2026-09-28).
+    allowlist_tag: str = "allowlist"
 
 
 class Config(_Section):
@@ -99,6 +141,8 @@ class Config(_Section):
     cache: Cache = Cache()
     network: Network = Network()
     rules: Rules = Rules()
+    exposure: Exposure = Exposure()
+    heuristics: Heuristics = Heuristics()
     ofac: Ofac = Ofac()
     eagle_virtual: EagleVirtual = EagleVirtual()
     tron: Tron = Tron()
@@ -126,6 +170,7 @@ class Secrets(BaseSettings):
 
     eagle_virtual_api_key: SecretStr | None = None
     trongrid_api_key: SecretStr | None = None
+    hypersync_api_token: SecretStr | None = None
 
 
 def load_secrets() -> Secrets:

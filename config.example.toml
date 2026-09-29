@@ -21,10 +21,39 @@ timeout_seconds = 30.0
 max_retry_after_seconds = 10.0
 
 [rules]
-# Change a rule's severity (PRD §5.2), for example: severity = { "R-FRZ-02" = "BLOCK" }
-# Only R-SAN-01, R-FRZ-01 and R-FRZ-02 can change, to BLOCK or REVIEW. R-SYS-01 is fixed: a
-# missing or outdated source always makes the result INCOMPLETE.
+# Change a rule's severity (PRD §5.2), for example: severity = { "R-EXP-01" = "BLOCK" }
+# Every rule but R-SYS-01 can change, to BLOCK or REVIEW. R-SYS-01 is fixed: a missing or
+# outdated source always makes the result INCOMPLETE.
 severity = {}
+
+[exposure]
+# How far back the address's USDT transfers are read (R-EXP-02's N).
+lookback_days = 180
+# More transfers than this in the lookback make the result INCOMPLETE rather than clean.
+max_transfers = 5000
+# R-EXP-02: REVIEW when at least this share of the USDT received came from flagged addresses.
+flagged_inflow_share = 0.05
+
+[heuristics]
+# R-HEU-01: the address's first activity is younger than this (a low-priority REVIEW).
+new_address_days = 7
+# R-HEU-02: at least this share of the USDT received left again within pass_through_hours.
+pass_through_share = 0.9
+pass_through_hours = 24
+# R-HEU-03: more than fan_in_senders different addresses each sent under fan_in_small_usdt
+# within fan_in_window_hours.
+fan_in_senders = 50
+fan_in_small_usdt = 100.0
+fan_in_window_hours = 24
+# R-HEU-04: the address paid more than fan_out_recipients different addresses within
+# fan_out_window_hours.
+fan_out_recipients = 50
+fan_out_window_hours = 24
+# R-HEU-05: a counterparty in labels.csv carries one of these tags.
+risky_tags = ["mixer", "bridge", "high_risk"]
+# Counterparties with this tag are left out of R-HEU-02 to R-HEU-04. They never cancel a
+# sanctions or freeze finding.
+allowlist_tag = "allowlist"
 
 [ofac]
 # Official OFAC Sanctions List Service download (see docs/verification.md).
@@ -47,3 +76,6 @@ usdt_contract = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
 
 [bsc]
 usdt_contract = "0x55d398326f99059fF775485246999027B3197955"
+# BSC transfer history, from Envio HyperSync with HYPERSYNC_API_TOKEN (docs/verification.md, V12).
+# The same service also answers at https://56.hypersync.xyz, if this name ever fails to resolve.
+hypersync_url = "https://bsc.hypersync.xyz"

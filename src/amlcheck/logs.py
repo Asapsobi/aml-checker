@@ -39,3 +39,5 @@ def setup(home: Path) -> None:
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
     logger.propagate = False
+    # httpx logs every request URL at INFO: keep it quiet, so no URL can put a key in the log.
+    logging.getLogger("httpx").setLevel(logging.WARNING)

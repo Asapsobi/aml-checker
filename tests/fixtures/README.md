@@ -22,6 +22,31 @@ date here.
 | `isBlackListed_true.json` | `POST https://api.trongrid.io/wallet/triggerconstantcontract` calling `isBlackListed(address)` for `TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ`, blacklisted by Tether on 2026-09-27 |
 | `isBlackListed_false.json`, `deprecated_false.json` | The same call for an address that is not blacklisted, and for `deprecated()` |
 | `solidity_nowblock.json` | `POST https://api.trongrid.io/walletsolidity/getnowblock`, the latest confirmed block (its transactions removed) |
+| `transfers_TAjoXR.json` | `GET https://api.trongrid.io/v1/accounts/TAjoXRsomrsDDCXsxD1ELFQu4wHfF9HZSv/transactions/trc20?contract_address=TR7N…&only_confirmed=true&limit=200&order_by=block_timestamp,desc`: its whole history, 12 transfers, including 500,000 USDT from the Tether-frozen `TAQM43ow…` (the Phase 2 exit criterion) |
+| `transfers_TAjoXR_first.json` | The same with `order_by=block_timestamp,asc&limit=1`: its first USDT transfer |
+| `getaccount_TAjoXR.json` | `POST https://api.trongrid.io/wallet/getaccount` for the same address, activated on 2026-09-24 |
+| `transfers_never_used.json`, `getaccount_never_used.json` | The same two requests for the never-used `TJwwz9NR37hjXdAV5gowj7src4avMuZZNW` |
+
+Tests build further histories with `transfer_row` in `tests/conftest.py`, in the shape of these
+recordings. Tests that run the command line on the real clock shift every history, unchanged
+in shape, to just before the current date so it stays inside the 180-day lookback.
+
+## Envio HyperSync (`hypersync/`)
+
+Recorded on 2026-09-29 from `https://bsc.hypersync.xyz` with the owner's free-plan token, by
+amlcheck's own client (`src/amlcheck/adapters/hypersync.py`), so each request is exactly one it sends.
+
+| File | Request |
+|---|---|
+| `height.json` | `GET /height` |
+| `block_time.json` | `POST /query` for one block's header (`include_all_blocks`) |
+| `transfers.json` | `POST /query` for the USDT transfers of the Binance wallet `0x8894…d4e3` over 30 blocks: 20 transfers in 16 blocks |
+| `transfers_none.json` | The same query for a random, never-used address: `"data": []` |
+| `first_activity.json` | `POST /query` from block 0 for the first transaction or transfer of `0x6b01…c4eb`: found in block 63,682,798 |
+| `error_no_token.json` | `POST /query` without a token: HTTP 401 |
+
+None of them contains the token, which travels in a header. Tests build BSC histories with
+`bsc_transfer` and `HyperSyncMock` in `tests/conftest.py`, in the shape of these recordings.
 
 ## Eagle Virtual (`eagle_virtual/`)
 

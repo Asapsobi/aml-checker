@@ -1,0 +1,27 @@
+{
+ "data": [
+  {
+   "transaction_id": "fa9195894e1c5167f04191dc53a1d7b898ca55f26fca6092697de557d66c4901",
+   "token_info": {
+    "symbol": "USDT",
+    "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "decimals": 6,
+    "name": "Tether USD"
+   },
+   "block_timestamp": 1790396310000,
+   "from": "TCLymMAtkq4FNytbU1JChH6cxqYyX4iYqU",
+   "to": "TAjoXRsomrsDDCXsxD1ELFQu4wHfF9HZSv",
+   "type": "Transfer",
+   "value": "50000000"
+  }
+ ],
+ "success": true,
+ "meta": {
+  "at": 1790597007608,
+  "fingerprint": "Cndjyb3uzni9co82S7Z4iwW2u9CmP8VaJCdmbtGqhcMABea2UkuCnZbV2k7wkF4Fo6eEccwEpsmDGFeHH7RJVTP22fw67ntBcPmKYqcJH3HcBxmjsDaV9HEihhEQKXgX3aMzTHnAqXb8aDhBmLmpVZ57oZKTxpVXJDp9AudF4CGCup6ZMfpR7RYf3f2ofiZg2ofj3Zkzre1Bxvz7itLUvTG4qXTyPBU5zAX2ozzrMcHHWoiUdLDh2povjpajwGgiDKAo9xhvCjdht",
+  "links": {
+   "next": "https://api.trongrid.io/v1/accounts/TAjoXRsomrsDDCXsxD1ELFQu4wHfF9HZSv/transactions/trc20?contract_address=TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t&limit=1&only_confirmed=true&order_by=block_timestamp,asc&fingerprint=Cndjyb3uzni9co82S7Z4iwW2u9CmP8VaJCdmbtGqhcMABea2UkuCnZbV2k7wkF4Fo6eEccwEpsmDGFeHH7RJVTP22fw67ntBcPmKYqcJH3HcBxmjsDaV9HEihhEQKXgX3aMzTHnAqXb8aDhBmLmpVZ57oZKTxpVXJDp9AudF4CGCup6ZMfpR7RYf3f2ofiZg2ofj3Zkzre1Bxvz7itLUvTG4qXTyPBU5zAX2ozzrMcHHWoiUdLDh2povjpajwGgiDKAo9xhvCjdht"
+  },
+  "page_size": 1
+ }
+}

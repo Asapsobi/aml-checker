@@ -34,3 +34,23 @@ Also run live on 2026-09-28:
 - A never-used BSC address gave `NO_HITS`.
 - `amlcheck sync` built the list (1,059 addresses) and the index (10,803 events) in 196 seconds, almost
   all of it the OFAC download.
+
+## Phase 2 exit criteria
+
+| Criterion | Tested in | Live result, 2026-09-28 |
+|---|---|---|
+| An address with a known frozen sender gives `REVIEW`, with the right transaction as evidence | `test_exposure.py::test_known_frozen_sender_gives_review_with_its_transaction`, `test_cli.py::test_known_frozen_sender_gives_review_end_to_end` | `TAjoXRsomrsDDCXsxD1ELFQu4wHfF9HZSv`: `REVIEW` in 4.4 seconds. R-EXP-01 names the 500,000 USDT from the Tether-frozen `TAQM43ow…` (transaction `f94a6ad33f18…`), with R-EXP-02 (16.7%), R-HEU-01 (first active 4 days ago) and R-HEU-02 (100% passed on). OFAC and Eagle Virtual had nothing on this address, so Phase 1 alone would have said `NO_HITS` |
+| p95 under 60 seconds on a 1,000-transfer history | `test_exposure.py::test_a_thousand_transfers_are_screened_quickly` (under 5 seconds with the network mocked) | A Bybit hot wallet: the newest 5,000 transfers, the most a check reads, took 20.7 seconds for the whole check. With more in the lookback, the result was `INCOMPLETE`, as decided in Q10 |
+
+BSC exposure is tested against Envio HyperSync answers recorded on 2026-09-29, in
+`test_hypersync.py`. Run live on 2026-09-29 (V12):
+
+- `0xd5efbbd79fcdc2834b7e2dcc7a0c6279e1281e36`: `REVIEW` in 6 seconds. R-EXP-01 names the 4,300 USDT
+  it received from the OFAC-listed `0x6b0736fe…` (Behzad MESRI, entry 24003) in transaction
+  `0x4ae30b33…0a64` on 2026-08-08, which SQD's raw chain data confirms. R-EXP-02 (16.3%) and R-HEU-02
+  (100% passed on) came with it. OFAC and Eagle Virtual had nothing on this address.
+- `0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c`, which OFAC lists as a BSC address: `BLOCK` in 8
+  seconds, with R-SAN-01 and R-FRZ-01.
+- A Binance hot wallet: `INCOMPLETE` in 21 seconds, with the newest 5,000 transfers read.
+- A quiet exchange deposit address, 81 transfers: `NO_HITS` in 12 seconds.
+- A never-used address: `REVIEW (low)` in 8 seconds, with R-HEU-01 ("no activity on chain yet").

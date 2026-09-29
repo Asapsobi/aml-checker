@@ -118,6 +118,54 @@ class TronGrid:
             raise TronGridError(f"TronGrid could not call {signature}: {data.get('result')}")
         return int(data["constant_result"][0] or "0", 16)
 
+    async def token_transfers(
+        self, address: str, contract: str, since: datetime, limit: int
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """The address's confirmed transfers of `contract` since `since`, newest first, at most
+        `limit` of them. The flag is True when older transfers in the window were left unread."""
+        url: str | None = f"{self._base}/v1/accounts/{address}/transactions/trc20"
+        params: dict[str, Any] | None = {
+            "contract_address": contract,
+            "only_confirmed": "true",
+            "order_by": "block_timestamp,desc",
+            "min_timestamp": int(since.timestamp() * 1000),
+            "limit": 200,
+        }
+        rows: list[dict[str, Any]] = []
+        while url:
+            data = await self._json("GET", url, params=params)
+            if data.get("success") is not True:
+                raise TronGridError(f"TronGrid could not list transfers: {data.get('Error')}")
+            rows.extend(data.get("data") or [])
+            url = ((data.get("meta") or {}).get("links") or {}).get("next")
+            params = None
+            if len(rows) > limit or (url and len(rows) >= limit):
+                return rows[:limit], True
+        return rows, False
+
+    async def first_token_transfer(self, address: str, contract: str) -> datetime | None:
+        data = await self._json(
+            "GET",
+            f"{self._base}/v1/accounts/{address}/transactions/trc20",
+            params={
+                "contract_address": contract,
+                "only_confirmed": "true",
+                "order_by": "block_timestamp,asc",
+                "limit": 1,
+            },
+        )
+        rows = data.get("data") or []
+        return from_timestamp(rows[0]["block_timestamp"] / 1000) if rows else None
+
+    async def created(self, address: str) -> datetime | None:
+        """When the account was activated. An address can hold and move USDT without ever being
+        activated, so None does not mean unused (docs/verification.md, V10)."""
+        data = await self._json(
+            "POST", f"{self._base}/wallet/getaccount", json={"address": address, "visible": True}
+        )
+        stamp = data.get("create_time")
+        return from_timestamp(stamp / 1000) if stamp else None
+
 
 @dataclass(frozen=True)
 class IndexState:

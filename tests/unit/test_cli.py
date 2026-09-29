@@ -4,11 +4,24 @@ import sqlite3
 import sys
 from contextlib import closing
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 import respx
-from conftest import BLACKLISTED, CREDIT_LINE, EagleVirtualMock, TronGridMock, mock_ofac
+from conftest import (
+    BLACKLISTED,
+    CREDIT_LINE,
+    FUNNEL,
+    HYPERSYNC_TOKEN,
+    EagleVirtualMock,
+    HyperSyncMock,
+    TronGridMock,
+    bsc_transfer,
+    load,
+    mock_ofac,
+    transfer_row,
+)
 from typer.testing import CliRunner
 
 from amlcheck import __version__, cli
@@ -19,9 +32,12 @@ from amlcheck.storage import db
 runner = CliRunner()
 
 CHEIL_TRON = "TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz"  # on the OFAC sample list as USDT
-CLEAN_TRON = "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW"
+CLEAN_TRON = "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW"  # given an ordinary, years-old history below
+NEVER_USED = "TWWfj8kFnxwJr34hn1sw57rCHXSKercQsb"
 CLEAN_BSC = "0x7a3f9c2e8b1d4f6a0c5e9b2d7f1a3c8e6b4d2f90"
 LAZARUS = "0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
+LAZARUS_NEIGHBOUR = "0x098b716b8aaf21512996dc57eb0615e2383e2f97"  # one digit off: not listed
+USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
 FROZEN_TRON = (
     "eagle_virtual/check_frozen_tron.json",
     "eagle_virtual/address_frozen_tron.json",
@@ -43,6 +59,7 @@ def wide_console(monkeypatch: pytest.MonkeyPatch) -> None:
 class Services:
     tron: TronGridMock
     eagle: EagleVirtualMock
+    hypersync: HyperSyncMock
 
 
 @pytest.fixture
@@ -53,9 +70,27 @@ def services(
     to wait out: the CLI runs on the real clock, so the TRON index head is "now"."""
     mock_ofac(network)
     monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "ev_live_test")
+    monkeypatch.setenv("HYPERSYNC_API_TOKEN", HYPERSYNC_TOKEN)
     isolated.mkdir(exist_ok=True)
     (isolated / "config.toml").write_text("[eagle_virtual]\nrequests_per_second = 1000\n")
-    return Services(TronGridMock(network, head_time=utcnow()), EagleVirtualMock(network))
+    now = utcnow()
+    tron = TronGridMock(network, head_time=now)
+    tron.add_history(
+        CLEAN_TRON,
+        [
+            transfer_row("in", now - timedelta(days=10), USDT_CONTRACT, CLEAN_TRON, "1000"),
+            transfer_row("out", now - timedelta(days=5), CLEAN_TRON, CHEIL_TRON[:-1] + "a", "100"),
+        ],
+        created=now - timedelta(days=700),
+    )
+    tron.move_histories(now)
+    hypersync = HyperSyncMock(network, int(now.timestamp()))
+    hypersync.transfers = [
+        bsc_transfer("0xin", now - timedelta(days=10), LAZARUS_NEIGHBOUR, CLEAN_BSC, "1000"),
+        bsc_transfer("0xout", now - timedelta(days=5), CLEAN_BSC, LAZARUS_NEIGHBOUR, "100"),
+    ]
+    hypersync.first_tx[CLEAN_BSC] = int((now - timedelta(days=700)).timestamp())
+    return Services(tron, EagleVirtualMock(network), hypersync)
 
 
 @pytest.fixture
@@ -91,7 +126,6 @@ def test_python_dash_m_runs_the_same_cli(
 @pytest.mark.parametrize(
     ("args", "phase"),
     [
-        (["labels", "import", "labels.csv"], 2),
         (["batch", "addresses.csv"], 3),
         (["audit", "export"], 3),
         (["watch", "add", CLEAN_TRON], 3),
@@ -150,10 +184,59 @@ def test_clean_address_is_no_hits_with_the_disclaimer(synced: Services) -> None:
     assert CLEAN_TRON in listed.output
 
 
-def test_bsc_address_skips_the_token_freeze_check(synced: Services) -> None:
+def test_clean_bsc_address_is_no_hits(synced: Services) -> None:
     result = runner.invoke(app, ["check", CLEAN_BSC])
     assert result.exit_code == 0, result.output
     assert "not applicable: BEP20 USDT cannot freeze an address" in result.output
+    assert "2 transfers with 1 counterparty; none flagged" in result.output
+
+
+def test_bsc_without_a_hypersync_token_is_incomplete(
+    synced: Services, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("HYPERSYNC_API_TOKEN")
+    result = runner.invoke(app, ["check", CLEAN_BSC])
+    assert result.exit_code == 4, result.output
+    assert "HYPERSYNC_API_TOKEN is not set" in result.output
+
+
+def test_bsc_with_a_refused_token_is_incomplete_and_says_why(
+    synced: Services, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HYPERSYNC_API_TOKEN", "hs-not-a-real-token")
+    result = runner.invoke(app, ["check", CLEAN_BSC])
+    assert result.exit_code == 4, result.output
+    assert "HyperSync answered HTTP 401: Your token is malformed" in result.output
+    assert "hs-not-a-real-token" not in result.output
+
+
+def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:
+    """Phase 2 exit criterion, from the command line: REVIEW with the transaction as evidence."""
+    frozen_tx = next(
+        r["transaction_id"]
+        for r in load("tron/transfers_TAjoXR.json")["data"]
+        if r["from"] == BLACKLISTED
+    )
+    human = runner.invoke(app, ["check", FUNNEL])
+    assert human.exit_code == 3, human.output
+    assert "R-EXP-01" in human.output
+    assert "REVIEW (low)" in human.output
+    data = json.loads(runner.invoke(app, ["check", FUNNEL, "--json"]).stdout)
+    direct = next(f for f in data["findings"] if f["rule_id"] == "R-EXP-01")
+    assert [t["tx_hash"] for t in direct["evidence"]["transfers"]] == [frozen_tx]
+    assert {f["rule_id"] for f in data["findings"]} == {
+        "R-EXP-01",
+        "R-EXP-02",
+        "R-HEU-01",
+        "R-HEU-02",
+    }
+
+
+def test_never_used_address_is_a_low_priority_review(synced: Services) -> None:
+    result = runner.invoke(app, ["check", NEVER_USED])
+    assert result.exit_code == 3, result.output
+    assert "REVIEW (low)" in result.output
+    assert "new address: no activity on chain yet" in result.output
 
 
 def test_eth_listed_address_blocks_on_bsc(synced: Services) -> None:
@@ -165,7 +248,7 @@ def test_eth_listed_address_blocks_on_bsc(synced: Services) -> None:
     result = runner.invoke(app, ["check", LAZARUS, "--json"])
     assert result.exit_code == 5
     rules = {f["rule_id"] for f in json.loads(result.stdout)["findings"]}
-    assert rules == {"R-SAN-01", "R-FRZ-01"}
+    assert rules == {"R-SAN-01", "R-FRZ-01", "R-HEU-01"}  # R-HEU-01: no BSC transfers in the mock
 
 
 def test_json_output_is_the_stable_contract(synced: Services) -> None:
@@ -281,6 +364,9 @@ def test_status_shows_every_source_and_never_a_key(synced: Services) -> None:
     assert "ok: free plan, 4 of 1,000 calls" in line_for(result.output, "Eagle Virtual")
     assert "ok: 6 blacklist events" in line_for(result.output, "TRON USDT")
     assert "skipped: not applicable" in line_for(result.output, "BSC USDT")
+    assert "ok: transfers over 180 days" in line_for(result.output, "Exposure (TRON)")
+    assert "ok: transfers over 180 days" in line_for(result.output, "Exposure (BSC)")
+    assert line_for(result.output, "HYPERSYNC_API_TOKEN").split()[-1] == "set"
 
 
 def test_status_explains_a_broken_config(isolated: Path) -> None:
@@ -290,3 +376,46 @@ def test_status_explains_a_broken_config(isolated: Path) -> None:
     assert result.exit_code == 1
     assert "Config error" in result.output
     assert "sanctions_max_age_hours" in result.output
+
+
+LABELS = """address,chain,tag,note,source
+TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,TRON,Mixer,known mixer,analyst
+0x098B716B8Aaf21512996dC57EB0615e2383E2f96,bsc,high_risk,,
+TJwwz9NR37hjXdAV5gowj7src4avMuZZNW,tron,allowlist,our own wallet,
+"""
+
+
+def test_labels_import_replaces_every_label(isolated: Path, tmp_path: Path) -> None:
+    path = tmp_path / "labels.csv"
+    path.write_text(LABELS)
+    result = runner.invoke(app, ["labels", "import", str(path)])
+    assert result.exit_code == 0, result.output
+    assert "Imported 3 labels: mixer 1, high_risk 1, allowlist 1" in result.output
+    path.write_text("address,chain,tag\nTR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,tron,bridge\n")
+    assert runner.invoke(app, ["labels", "import", str(path)]).exit_code == 0
+    with closing(sqlite3.connect(isolated / "amlcheck.db")) as conn:
+        assert conn.execute("SELECT tag FROM labels").fetchall() == [("bridge",)]
+
+
+def test_labels_import_takes_nothing_from_a_file_with_a_bad_row(
+    isolated: Path, tmp_path: Path
+) -> None:
+    path = tmp_path / "labels.csv"
+    path.write_text(LABELS)
+    assert runner.invoke(app, ["labels", "import", str(path)]).exit_code == 0
+    path.write_text(LABELS + "0x1234,bsc,mixer,,\nTJwwz9NR37hjXdAV5gowj7src4avMuZZNW,eth,mixer,,\n")
+    result = runner.invoke(app, ["labels", "import", str(path)])
+    assert result.exit_code == 1
+    assert "Nothing was imported" in result.output
+    assert "line 5: '0x1234' is not a TRON address" in result.output
+    assert "line 6: the chain must be tron or bsc, not 'eth'" in result.output
+    with closing(sqlite3.connect(isolated / "amlcheck.db")) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM labels").fetchone()[0] == 3
+
+
+def test_labels_import_needs_the_header(tmp_path: Path) -> None:
+    path = tmp_path / "labels.csv"
+    path.write_text("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,tron,mixer\n")
+    result = runner.invoke(app, ["labels", "import", str(path)])
+    assert result.exit_code == 1
+    assert "the header lacks" in result.output

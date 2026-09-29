@@ -1,6 +1,6 @@
 # Phase 0 verification report
 
-> **Checked:** 2026-09-28 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
+> **Checked:** 2026-09-28, with V11–V13 added on 2026-09-29 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
 
 This report checks every item that PRD §6 marks **verify**, plus the provider facts that §2 and §11
 rely on. Each item says where it was checked, what was found and what it changes in the build.
@@ -17,7 +17,7 @@ Providers change: re-check an item before a later phase depends on it.
 | V5 | TRON USDT contract and events | Address, the three event names and `isBlackListed` confirmed live | Confirmed |
 | V6 | BSC USDT freeze capability | The contract has no freeze, blacklist or pause function | **Finding: it cannot freeze** |
 | V7 | TronGrid | Endpoints confirmed. Limits are set per key and not published | Confirmed |
-| V8 | BSC chain data | Etherscan V2 is current, but BSC is paid-only there. BscScan's API is retired | **Decision needed** |
+| V8 | BSC chain data | Etherscan V2 is paid-only for BSC, and BscScan's API is retired. The history comes from Envio HyperSync's free plan (V12) | Decided (Q4) |
 
 ## V1. OFAC SDN list
 
@@ -231,7 +231,8 @@ than code.
 - PublicAML, the API behind `checker.py`, also serves BSC transfers and counterparties. Without a key
   it allows 20 addresses an hour on those endpoints.
 
-**What this changes:** Phase 2 needs a BSC data source to be chosen (Q4).
+**What this changes:** Phase 2 needs a BSC data source to be chosen (Q4). Chosen on 2026-09-29:
+Envio HyperSync (V12).
 
 ## V9. Checked before building Phase 1
 
@@ -255,10 +256,139 @@ than code.
   Virtual's `/v1/address` record and TronGrid's `AddedBlackList` event name the same transaction and
   block.
 
+## V10. Checked before building Phase 2
+
+**TronGrid**, checked on 2026-09-28 with the owner's key:
+
+- **Transfer history has the filters the scan needs.** `GET /v1/accounts/{address}/transactions/trc20`
+  filters by `contract_address`, `only_confirmed`, `min_timestamp` and `order_by`, and pages 200 rows
+  at a time through `meta.links.next`. Each row has `transaction_id`, `block_timestamp`, `from`,
+  `to`, `value`, `type` and `token_info` (6 decimals). A never-used address answers
+  `{"data": [], "success": true}`.
+- **Creation time comes from the node API.** `GET /v1/accounts/{address}` has no creation time.
+  `POST /wallet/getaccount` has `create_time` (in ms), and answers `{}` for an address that was
+  never activated.
+- **USDT does not need activation.** `TAQM43owNJLZz3vh3PXxBu2qTWf2McMQwJ`, frozen on 2026-09-27, has
+  no `create_time` but six USDT transfers. First activity is therefore the earlier of `create_time`
+  and the first USDT transfer (`order_by=block_timestamp,asc`, `limit=1`).
+- **The exit-criterion fixture is real.** `TAjoXRsomrsDDCXsxD1ELFQu4wHfF9HZSv` was activated on
+  2026-09-24. On 2026-09-26, the day before Tether froze `TAQM43ow…`, it received 500,000 USDT from
+  it, and it passed 3,000,050 USDT on within minutes.
+- **A busy address is read quickly.** The newest 5,000 transfers of a Bybit hot wallet took 25
+  pages and about 20 seconds.
+
+**NodeReal**, the first choice for Q4, checked on 2026-09-28:
+
+- **Every request covers at most 100,000 blocks**, with or without an address filter. The docs for
+  `nr_getAssetTransfers` (250 compute units a call) say: "If both fromBlock and toBlock are provided,
+  their range must be no more than 100000 blocks".
+- **That is only 12.5 hours of BSC.** BSC makes a block every 0.45 seconds (measured over its last
+  1,000,000 blocks), so 180 days take 345 requests in each direction.
+- **Neither plan is fast enough.** The pricing page gives the Free plan 10,000,000 compute units a
+  month at 150 a second (the docs also say 100M and 300). The Growth plan costs $31 a month for 700
+  a second. A check would take about 20 minutes on Free and about 4 on Growth.
+- **So NodeReal does not hold up,** and Q4's fallback applies.
+
+**Etherscan**, the fallback: the cheapest plan that covers BNB Smart Chain is Lite, at $49 a month,
+with 5 calls a second and 100,000 a day. Its docs list `module=account&action=tokentx` with
+`address`, `contractaddress`, `startblock`, `endblock`, `page`, `offset` and `sort`, returning
+`blockNumber`, `timeStamp`, `hash`, `from`, `to`, `value` and `tokenDecimal` among others. This is to
+be checked live once a key exists.
+
+## V11. Etherscan, for BSC
+
+**No longer used.** The owner chose not to buy the Lite plan, so the Etherscan code was removed on
+2026-09-29 (Q4, D21). These facts are kept for reference.
+
+**Checked** on 2026-09-29 with the owner's key, which is still on the free plan. It works on Ethereum
+and refuses BSC with "Free API access is not supported for this chain. Please upgrade your api plan
+for full chain coverage." The V2 API is the same on every chain, so its behaviour was checked on
+Ethereum. BSC itself is still to be checked once the Lite plan is active.
+
+- **Rows have no log index.** `module=account&action=tokentx` rows carry `blockNumber`, `timeStamp`
+  (in seconds), `hash`, `from`, `to`, `value`, `tokenDecimal` and `contractAddress`, among others.
+  Two identical transfers in one transaction therefore cannot be told apart.
+- **"No transactions found" is an answer, not an error.** An address without transfers comes back as
+  `status "0"`, `message "No transactions found"`, `result []`.
+- **Results stop at 10,000 per query:** "Result window is too large, PageNo x Offset size must be
+  less than or equal to 10000". On a busy address, one page of 1,000 ended with 53 transfers in the
+  same block.
+- **Two helper calls exist.** `module=block&action=getblocknobytime&closest=after` turns a time into a
+  block number, and `action=txlist&sort=asc&offset=1` gives an address's first transaction.
+- **BSC is past Etherscan's example end block.** The examples use `endblock=99999999`, but BSC is
+  past block 124 million, so a fixed end block would silently drop every recent transfer. The first
+  request therefore has no end block.
+
+**What this changes:**
+
+- **Paging moves the end block.** The BSC history reads pages of 1,000, newest first, and moves the
+  end block down instead of turning pages. The block at a page's edge is dropped and read again
+  whole with the next page, which works at any volume.
+- **The key stays out of errors and logs.** It travels in the query string, so no error text
+  includes a URL, and httpx's own request log is kept quiet.
+
+## V12. Envio HyperSync, for BSC
+
+**Checked** on 2026-09-29 with the owner's free-plan token, against raw chain logs from SQD's public
+portal (V13).
+
+- **Access.** `POST https://bsc.hypersync.xyz/query`, also served at `https://56.hypersync.xyz`, with
+  `Authorization: Bearer <token>`. Without a token the answer is HTTP 401, "Your token is malformed.
+  API Tokens can be created at https://app.envio.dev/api-tokens". `GET /height` answers
+  `{"height": N}`, with or without a token.
+- **Limits and terms.** The free plan has "fair-use based rate limiting". Every answer carried
+  `x-ratelimit-cost: 0`. The docs say an exhausted budget answers 429 with `x-ratelimit-*` headers.
+  Envio's terms of service cover HyperSync: UK law, and the data comes "as is".
+- **Answers.** `{"data", "archive_height", "next_block", "total_execution_time", "rollback_guard"}`.
+  `data` is a list holding one batch of `blocks` and `logs` (and `transactions` when asked for), or
+  `[]` when nothing matched. **Block timestamps are hex strings** (`"0x6abb9411"`), block and log
+  numbers are integers, and topics come as 32-byte hex in `topic1` and `topic2`.
+- **Paging.** An answer stops at a time or size limit, near 1,000 transfers or after a few seconds of
+  work, and `next_block` says where to go on. At the end of the data, `next_block` is
+  `archive_height + 1`. `max_num_logs` stops an answer early, but only between blocks.
+- **Complete.** Of 20 real USDT transfers picked at random from SQD's raw logs across April to
+  September 2026, all 20 were found. PublicAML found 5 of 10 (V13). Rows matched the raw logs field
+  for field (hash, log index, block, time, sender, recipient and amount): 2,106 of 2,106 for a
+  Binance wallet, and every sampled window of a quiet wallet.
+- **Fast.** A quiet wallet's 180 days: 81 transfers in 2 requests, 2.5 seconds. A scan from block 0
+  for the first transaction or transfer: 0.3 to 6 seconds for an active address, 8 to 21 for a
+  never-used one. The newest 5,000 transfers of a Binance hot wallet: 13.5 seconds.
+- **Oldest first only.** A query has no descending order. HyperSync's own client reads "in reverse"
+  by querying block windows from the head down.
+- **DNS.** For a few minutes on 2026-09-29, `bsc.hypersync.xyz` did not resolve (SERVFAIL from
+  8.8.8.8 and 4.2.2.4, while 1.1.1.1 answered). `56.hypersync.xyz` worked throughout.
+
+**What this changes:**
+
+- The BSC history is read oldest first. Once the part read shows more than `max_transfers` in the
+  window, the newest are read instead, window by window from the head down (D22).
+- The window's first block comes from the chain's pace, checked against block headers, so no
+  transfer inside the lookback is missed. It lands about 1,000 blocks (7.5 minutes) early.
+- First activity takes one scan (D23).
+- An answer that makes no progress, or has no `next_block`, is an error, so the check is INCOMPLETE.
+- `[bsc] hypersync_url` can point at `https://56.hypersync.xyz` if the other name fails.
+
+## V13. Free BSC sources without an account
+
+**Checked** on 2026-09-29, after the owner declined Etherscan's Lite plan and an Alchemy account.
+None of these gives a complete 180-day history without an account:
+
+| Source | Finding |
+|---|---|
+| SQD public portal (`portal.sqd.dev`, no key) | Accurate raw logs, but each answer covers only about 2,000 BSC blocks: a quiet address's 180 days take about 17,000 requests, and it answers 529 "overloaded" every few calls. Used here as the reference for checking other sources |
+| 16 public BSC RPC nodes | BNB Chain's own nodes refuse `eth_getLogs` ("limit exceeded"). PublicNode and 48 Club allow 5,000 blocks a call, and PublicNode needs a personal token for older ranges. 1RPC allows 50. The rest are paid, blocked or down |
+| Routescan | "chain not supported" for chain 56 |
+| Etherscan without a key | The same refusal as the free plan |
+| Ankr | Needs a key |
+| Envio HyperSync without a token | HTTP 401 |
+| PublicAML `POST /v1/address-transactions` | No key needed (20 requests an hour), and its rows matched the raw logs. But it **missed 5 of 10** real transfers picked at random: an answer can say `has_more: false` before reaching the dates asked for (`index_exhausted: false`), and a wallet's feed can lack a transfer that the other party's feed lists. Before about March 2026 it also lists some transfers twice (`edge_type: "internal"`), and its `timestamp` is a string where its spec says integer |
+
+**What this changes:** the owner created a free Envio account, and Q4's answer is HyperSync (V12).
+
 ## Decisions
 
-These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0 and
-D6–D12 in Phase 1.
+These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0,
+D6–D12 in Phase 1 and D13–D23 in Phase 2.
 
 | # | Decision | Why |
 |---|---|---|
@@ -274,6 +404,17 @@ D6–D12 in Phase 1.
 | D10 | A listed address that fails its checksum is kept, and a warning is logged (V1). The downloaded XML is parsed with `defusedxml` | A typo on the list must not hide an entry, and the parser refuses XML attacks |
 | D11 | Migration 0002 adds the listed entity's name, a snapshot's address count, the balance destroyed by `DestroyedBlackFunds`, the time of the index's last block, and the summaries shown to the operator | Evidence in plain words, the §14 sanity check, and an audit hash that covers what the operator saw |
 | D12 | `audit verify` prints the latest record hash, to keep a copy elsewhere | A hash chain cannot show records cut off its end from inside the file |
+| D13 | Transfers of 0 USDT are left out of the history | On TRON anyone can send them to any address (address poisoning): spam, not dealings |
+| D14 | An address with no activity at all counts as new (R-HEU-01) | It is as new as an address can be, so NO_HITS would hide that |
+| D15 | First activity is the earlier of the account's activation and its first USDT transfer | An address can move USDT without ever being activated (V10) |
+| D16 | R-EXP-02's "flagged sources" are those R-EXP-01 flags: sanctioned or frozen. Labels count only for R-HEU-05 | Keeps the two exposure rules consistent |
+| D17 | `labels import` replaces every label, and imports nothing if any row is wrong | The file is the source of truth |
+| D18 | The exposure source is required: if the history cannot be read, the result is INCOMPLETE | PRD §0 rule 4 |
+| D19 | At most 10 R-EXP-01 and 10 R-HEU-05 findings per check, largest counterparties first | Keeps a busy address's result readable |
+| D20 | A finding's priority is kept in its evidence (`"priority": "low"`), not in a new column | Existing audit records keep verifying |
+| D21 | BSC transfer history comes from Envio HyperSync's free plan (`HYPERSYNC_API_TOKEN`), and the Etherscan code is removed | Free and complete (V12). The owner declined Etherscan's Lite plan, and no source without an account is complete (V13) |
+| D22 | A BSC address that shows more than `max_transfers` in the lookback is read newest first, window by window from the head down, each window read whole | HyperSync reads oldest first, and the newest transfers matter most. The result then matches TRON's: "only the newest 5,000 were read" |
+| D23 | First activity on BSC is the first transaction the address sent or received, or the first Transfer log of any token naming it. BNB paid to it by a contract call, which leaves no log, is not counted | The same definition as the Etherscan version had (transactions and token transfers), found in one HyperSync scan |
 
 ## Open questions
 
@@ -284,11 +425,14 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q1 | BEP20 USDT cannot be frozen (V6). On BSC, should the freeze source report `skipped` ("not applicable"), and can a BSC check then end in `NO_HITS`? | Phase 1 | Decided |
 | Q2 | Eagle Virtual answers for a `0x` address across every EVM chain it covers (V4). If Tether froze the same `0x` address on Ethereum, should a BSC check say BLOCK (R-FRZ-01), REVIEW, or ignore it? And if an unrelated EVM chain is behind (`verdict: null`), is the BSC check INCOMPLETE, as §6 reads literally? | Phase 1 | Decided |
 | Q3 | "Sanctions snapshot > 48 h old" (§11): is age measured from our last successful download, or from OFAC's publish date? OFAC does not publish daily (the current list is from 2026-09-23), so measuring from the publish date would make most checks INCOMPLETE. | Phase 1 | Decided |
-| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | Open |
-| Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 | Open |
+| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | Decided |
+| Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 | Decided |
 | Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 | Decided |
-| Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 | Open |
+| Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 | Decided |
 | Q8 | §10.1 says audit export is CSV and JSON, with "PDF in Phase 3", but §12 puts all export in Phase 3. Which is it? | Phase 1 | Decided |
+| Q9 | PRD §15 Q1: should R-EXP-01 be BLOCK instead of REVIEW? | Phase 2 | Decided |
+| Q10 | What happens with an address that has more transfers than a check can read quickly? | Phase 2 | Decided |
+| Q11 | How does the "allowlist for own/known wallets" in `labels.csv` (§14) work? | Phase 2 | Decided |
 
 ### Answers
 
@@ -315,6 +459,33 @@ OFAC list.
 
 **Q8, decided 2026-09-28.** `audit export` (CSV, JSON and PDF) is built in Phase 3, as §12 says.
 Phase 1 builds only `audit list` and `audit verify`.
+
+**Q4, decided 2026-09-29.** Envio HyperSync's free plan (V12, D21). NodeReal's free tier did not
+hold up (V10). The agreed fallback, Etherscan's Lite plan at $49 a month, was built (V11), but the
+owner chose not to pay for it. No free source without an account gives a complete history (V13), so
+the owner created a free Envio account. Without `HYPERSYNC_API_TOKEN`, a BSC check ends INCOMPLETE.
+
+**Q5, decided 2026-09-28.** PublicAML is not a source for now, because it publishes no terms or
+licence. Revisit in Phase 4, when the PRD adds a commercial vendor. Re-checked on 2026-09-29 as a
+free BSC history without an account: it misses transfers (V13), so it stays out.
+
+**Q7, decided 2026-09-28.**
+
+- **R-HEU-03 (fan-in):** more than 50 different senders, each sending under 100 USDT, within 24
+  hours.
+- **R-HEU-04 (fan-out):** more than 50 different recipients within 24 hours.
+- **`low`** marks a REVIEW finding as low priority. It does not change the verdict.
+- All of these can be changed under `[heuristics]` in `config.toml`.
+
+**Q9, decided 2026-09-28.** R-EXP-01 is REVIEW by default, as §5.2 says. Setting
+`[rules] severity = { "R-EXP-01" = "BLOCK" }` makes it BLOCK.
+
+**Q10, decided 2026-09-28.** The exposure source reads at most 5,000 transfers in the lookback
+(`[exposure] max_transfers`). If the lookback holds more, the source is stale and the result is
+INCOMPLETE, never a clean result over part of the history.
+
+**Q11, decided 2026-09-28.** Counterparties tagged `allowlist` in `labels.csv` are left out of
+R-HEU-02 to R-HEU-04. They never cancel a sanctions or freeze finding.
 
 ## Phase 0 exit criteria
 
