@@ -29,6 +29,7 @@ from amlcheck.core.models import (
 )
 from amlcheck.exposure.heuristics import busiest_window, pass_through
 from amlcheck.exposure.history import History, HistorySource
+from amlcheck.exposure.reader import HistoryReader
 from amlcheck.exposure.walker import (
     FROZEN,
     LABEL,
@@ -45,6 +46,8 @@ SOURCE = "exposure"
 MAX_FINDINGS = 10  # per rule, largest counterparties first
 FROZEN_ELSEWHERE = "frozen_elsewhere"  # a remote lookup: Eagle Virtual says FROZEN or SEIZED
 RISK_FLAGS = (SANCTIONED, FROZEN, FROZEN_ELSEWHERE)
+# What a failed history read raises. Anything else is a bug, and the engine reports it as an error.
+HISTORY_ERRORS = (TronGridError, HyperSyncError, httpx.HTTPError)
 
 
 class LookupFailed(Exception):
@@ -97,13 +100,15 @@ class ExposureAdapter:
         remote: RemoteLookup | None = None,
         max_remote: int = 0,
         now: Callable[[], datetime] = utcnow,
+        reader: HistoryReader | None = None,
     ) -> None:
         self._conn = conn
         self._chain = chain
-        self._history = history
+        if reader is None and history is not None:
+            reader = HistoryReader(history, cache, exposure.lookback_days, now)
+        self._reader = reader
         self._exposure = exposure
         self._heuristics = heuristics
-        self._cache = cache
         self._unavailable = unavailable
         self._remote = remote
         self._max_remote = max_remote
@@ -112,26 +117,14 @@ class ExposureAdapter:
     def _result(self, status: SourceStatus, summary: str, **kwargs: Any) -> SourceResult:
         return SourceResult(SOURCE, self.label, self.required, status, summary, **kwargs)
 
-    async def _read(self, source: HistorySource, address: Address, since: datetime) -> History:
-        key = (
-            f"{SOURCE}:{address.chain.value}:{address.normalized}:{since.date().isoformat()}"
-            f":{self._exposure.max_transfers}"
-        )
-        cached = self._cache.get(key)
-        if cached is not None:
-            return History.from_json(cached)
-        history = await source.fetch(address.normalized, since, self._exposure.max_transfers)
-        self._cache.put(key, SOURCE, history.to_json())
-        return history
-
     async def check(self, address: Address) -> SourceResult:
-        if self._history is None:
+        if self._reader is None:
             return self._result(SourceStatus.error, self._unavailable)
         now = self._now()
         days = self._exposure.lookback_days
         try:
-            history = await self._read(self._history, address, now - timedelta(days=days))
-        except (TronGridError, HyperSyncError, httpx.HTTPError) as e:
+            history = await self._reader.read(address.normalized, self._exposure.max_transfers)
+        except HISTORY_ERRORS as e:
             return self._result(SourceStatus.error, f"the transfer history could not be read: {e}")
 
         parties = counterparties(address.normalized, history.transfers)
@@ -384,7 +377,7 @@ class ExposureAdapter:
 
     async def health(self) -> SourceHealth:
         label = f"Exposure ({self._chain.upper()})"
-        if self._history is None:
+        if self._reader is None:
             return SourceHealth(SOURCE, label, SourceStatus.error, self._unavailable)
         labels = self._conn.execute("SELECT COUNT(*) FROM labels").fetchone()[0]
         return SourceHealth(

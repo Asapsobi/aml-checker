@@ -22,11 +22,13 @@ log = logging.getLogger(__name__)
 
 async def run_source(source: SourceAdapter, address: Address, timeout: float) -> SourceResult:
     """A source that breaks or hangs becomes an `error`, and so an INCOMPLETE verdict: a failure
-    must never crash the check or pass as a clean result."""
+    must never crash the check or pass as a clean result. A source that needs longer than the
+    default says so in its own `timeout` (the 2-hop walk)."""
+    limit = getattr(source, "timeout", None) or timeout
     try:
-        return await asyncio.wait_for(source.check(address), timeout)
+        return await asyncio.wait_for(source.check(address), limit)
     except TimeoutError:
-        return failed(source, f"no answer within {timeout:g} seconds")
+        return failed(source, f"no answer within {limit:g} seconds")
     except Exception as e:
         log.exception("source %s failed", source.source)
         return failed(source, f"{type(e).__name__}: {e}")

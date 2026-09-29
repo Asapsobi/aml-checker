@@ -94,6 +94,7 @@ OverridableRule = Literal[
     "R-FRZ-02",
     "R-EXP-01",
     "R-EXP-02",
+    "R-EXP-03",
     "R-HEU-01",
     "R-HEU-02",
     "R-HEU-03",
@@ -117,6 +118,22 @@ class Exposure(_Section):
     # rests on part of the history (decided 2026-09-28, docs/verification.md).
     max_transfers: int = Field(default=5000, gt=0)
     flagged_inflow_share: float = Field(default=0.05, gt=0, le=1)
+
+
+class TwoHop(_Section):
+    """2-hop exposure (PRD Phase 4, R-EXP-03): whom the address's largest counterparties received
+    USDT from. It runs for `amlcheck investigate`, and for a check whose --amount is at least
+    `auto_amount_usdt` (Q15; 0 keeps it to `investigate`)."""
+
+    auto_amount_usdt: float = Field(default=10_000, ge=0)
+    # R-EXP-03: a counterparty received at least this from one sanctioned or frozen wallet (Q16).
+    min_flagged_usdt: float = Field(default=1_000, gt=0)
+    counterparties: int = Field(default=20, gt=0)  # the largest ones are read
+    # A counterparty with more transfers than this in the lookback is a hub, such as an exchange:
+    # 2 hops through it reach almost everyone, so it is listed but not read.
+    max_transfers: int = Field(default=1_000, gt=0)
+    time_budget_seconds: float = Field(default=120, gt=0)
+    parallel_reads: int = Field(default=3, gt=0, le=10)
 
 
 class Heuristics(_Section):
@@ -143,6 +160,7 @@ class Config(_Section):
     rules: Rules = Rules()
     exposure: Exposure = Exposure()
     heuristics: Heuristics = Heuristics()
+    two_hop: TwoHop = TwoHop()
     ofac: Ofac = Ofac()
     eagle_virtual: EagleVirtual = EagleVirtual()
     tron: Tron = Tron()

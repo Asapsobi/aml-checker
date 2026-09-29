@@ -15,10 +15,12 @@ from amlcheck.adapters.exposure import ExposureAdapter
 from amlcheck.adapters.hypersync import HyperSync
 from amlcheck.adapters.ofac import OfacAdapter
 from amlcheck.adapters.tron import TronGrid, TronUsdtAdapter
+from amlcheck.adapters.two_hop import TwoHopAdapter
 from amlcheck.config import Config, Secrets
 from amlcheck.core.clock import utcnow
 from amlcheck.core.models import Chain
 from amlcheck.exposure.history import BscHistory, HistorySource, TronHistory
+from amlcheck.exposure.reader import HistoryReader
 from amlcheck.net import RateLimiter, Sleep
 from amlcheck.storage.cache import ResponseCache
 
@@ -50,7 +52,10 @@ def build(
     now: Callable[[], datetime] = utcnow,
     sleep: Sleep = asyncio.sleep,
     eagle_limiter: RateLimiter | None = None,
+    two_hop: bool = False,
 ) -> list[SourceAdapter]:
+    """The sources for one check. With `two_hop`, the 2-hop walk too (`investigate`, and checks of
+    a large amount: Q15)."""
     cache = ResponseCache(conn, config.cache.target_ttl_seconds, now)
     eagle = EagleVirtualAdapter(
         http,
@@ -83,6 +88,8 @@ def build(
             )
             history = BscHistory(hypersync, config.bsc.usdt_contract)
     lookups = config.eagle_virtual.max_remote_counterparty_lookups
+    # One reader for both walks, so the address's own history is read once.
+    reader = HistoryReader(history, cache, config.exposure.lookback_days, now) if history else None
     sources.append(
         ExposureAdapter(
             conn,
@@ -95,6 +102,18 @@ def build(
             remote=eagle.verdict if lookups else None,
             max_remote=lookups,
             now=now,
+            reader=reader,
         )
     )
+    if two_hop:
+        sources.append(
+            TwoHopAdapter(
+                conn,
+                reader,
+                config.exposure,
+                config.two_hop,
+                unavailable=BSC_HISTORY_MISSING,
+                now=now,
+            )
+        )
     return sources
