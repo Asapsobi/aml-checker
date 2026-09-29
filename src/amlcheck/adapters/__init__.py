@@ -11,18 +11,20 @@ import httpx
 from amlcheck.adapters.base import SourceAdapter
 from amlcheck.adapters.bsc import BscUsdtAdapter
 from amlcheck.adapters.eagle_virtual import EagleVirtualAdapter
+from amlcheck.adapters.etherscan import Etherscan
 from amlcheck.adapters.exposure import ExposureAdapter
 from amlcheck.adapters.ofac import OfacAdapter
 from amlcheck.adapters.tron import TronGrid, TronUsdtAdapter
 from amlcheck.config import Config, Secrets
 from amlcheck.core.clock import utcnow
 from amlcheck.core.models import Chain
-from amlcheck.exposure.history import HistorySource, TronHistory
+from amlcheck.exposure.history import BscHistory, HistorySource, TronHistory
 from amlcheck.net import Sleep
 from amlcheck.storage.cache import ResponseCache
 
 BSC_HISTORY_MISSING = (
-    "BSC transfer history needs a data source, which is not set up yet (docs/verification.md, Q4)"
+    "ETHERSCAN_API_KEY is not set: BSC transfer history needs an Etherscan key on the Lite plan"
+    " or above (docs/verification.md, Q4)"
 )
 
 
@@ -69,6 +71,17 @@ def build(
         history = TronHistory(grid, config.tron.usdt_contract)
     else:
         sources.append(BscUsdtAdapter())
+        if secrets.etherscan_api_key is not None:
+            etherscan = Etherscan(
+                http,
+                config.bsc.etherscan_url,
+                secrets.etherscan_api_key,
+                config.bsc.chain_id,
+                per_second=config.bsc.etherscan_requests_per_second,
+                max_retry_after=config.network.max_retry_after_seconds,
+                sleep=sleep,
+            )
+            history = BscHistory(etherscan, config.bsc.usdt_contract)
     lookups = config.eagle_virtual.max_remote_counterparty_lookups
     sources.append(
         ExposureAdapter(

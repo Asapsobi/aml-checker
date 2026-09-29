@@ -76,3 +76,8 @@ usdt_contract = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
 
 [bsc]
 usdt_contract = "0x55d398326f99059fF775485246999027B3197955"
+# BSC transfer history. Needs ETHERSCAN_API_KEY on the Lite plan or above (docs/verification.md, Q4).
+etherscan_url = "https://api.etherscan.io/v2/api"
+chain_id = 56
+# The Lite plan allows 5 calls a second: stay a little under it.
+etherscan_requests_per_second = 4.0

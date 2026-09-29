@@ -294,6 +294,35 @@ with 5 calls a second and 100,000 a day. Its docs list `module=account&action=to
 `blockNumber`, `timeStamp`, `hash`, `from`, `to`, `value` and `tokenDecimal` among others. This is to
 be checked live once a key exists.
 
+## V11. Etherscan, for BSC
+
+**Checked** on 2026-09-29 with the owner's key, which is still on the free plan. It works on Ethereum
+and refuses BSC with "Free API access is not supported for this chain. Please upgrade your api plan
+for full chain coverage." The V2 API is the same on every chain, so its behaviour was checked on
+Ethereum. BSC itself is still to be checked once the Lite plan is active.
+
+- **Rows have no log index.** `module=account&action=tokentx` rows carry `blockNumber`, `timeStamp`
+  (in seconds), `hash`, `from`, `to`, `value`, `tokenDecimal` and `contractAddress`, among others.
+  Two identical transfers in one transaction therefore cannot be told apart.
+- **"No transactions found" is an answer, not an error.** An address without transfers comes back as
+  `status "0"`, `message "No transactions found"`, `result []`.
+- **Results stop at 10,000 per query:** "Result window is too large, PageNo x Offset size must be
+  less than or equal to 10000". On a busy address, one page of 1,000 ended with 53 transfers in the
+  same block.
+- **Two helper calls exist.** `module=block&action=getblocknobytime&closest=after` turns a time into a
+  block number, and `action=txlist&sort=asc&offset=1` gives an address's first transaction.
+- **BSC is past Etherscan's example end block.** The examples use `endblock=99999999`, but BSC is
+  past block 124 million, so a fixed end block would silently drop every recent transfer. The first
+  request therefore has no end block.
+
+**What this changes:**
+
+- **Paging moves the end block.** The BSC history reads pages of 1,000, newest first, and moves the
+  end block down instead of turning pages. The block at a page's edge is dropped and read again
+  whole with the next page, which works at any volume.
+- **The key stays out of errors and logs.** It travels in the query string, so no error text
+  includes a URL, and httpx's own request log is kept quiet.
+
 ## Decisions
 
 These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0,
@@ -331,7 +360,7 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q1 | BEP20 USDT cannot be frozen (V6). On BSC, should the freeze source report `skipped` ("not applicable"), and can a BSC check then end in `NO_HITS`? | Phase 1 | Decided |
 | Q2 | Eagle Virtual answers for a `0x` address across every EVM chain it covers (V4). If Tether froze the same `0x` address on Ethereum, should a BSC check say BLOCK (R-FRZ-01), REVIEW, or ignore it? And if an unrelated EVM chain is behind (`verdict: null`), is the BSC check INCOMPLETE, as §6 reads literally? | Phase 1 | Decided |
 | Q3 | "Sanctions snapshot > 48 h old" (§11): is age measured from our last successful download, or from OFAC's publish date? OFAC does not publish daily (the current list is from 2026-09-23), so measuring from the publish date would make most checks INCOMPLETE. | Phase 1 | Decided |
-| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | **Waiting for the Etherscan purchase** |
+| Q4 | Where should BSC transfer history come from: an Etherscan paid plan, NodeReal MegaNode's free tier, or PublicAML? | Phase 2 | **Built; waiting for the Lite plan** |
 | Q5 | Should PublicAML be a source at all? It covers sanctions, issuer freezes, exposure and attribution on both chains, but publishes no terms or licence | Phase 2 | Decided |
 | Q6 | The Chainalysis free API is closed to new users (V2). Drop it, or do you already hold a key? | Phase 1 | Decided |
 | Q7 | R-HEU-03 and R-HEU-04 give no defaults for K, the window or what counts as a small amount. R-HEU-01 says "REVIEW (low)" and §10.2 prints the severity `low`: is `low` a severity of its own? | Phase 2 | Decided |
@@ -367,9 +396,9 @@ OFAC list.
 Phase 1 builds only `audit list` and `audit verify`.
 
 **Q4, 2026-09-28.** NodeReal's free tier was the first choice if its limits held up. They do not
-(V10), so the agreed fallback applies: an Etherscan Lite plan at $49 a month. That now waits for
-the owner's purchase. Until then a BSC check is INCOMPLETE, because the exposure source has no
-history to read.
+(V10), so the agreed fallback applies: an Etherscan Lite plan at $49 a month. The BSC history is
+built on Etherscan (V11), but the owner's key is still on the free plan, so a BSC check ends
+INCOMPLETE with Etherscan's own reason until the plan is upgraded.
 
 **Q5, decided 2026-09-28.** PublicAML is not a source for now, because it publishes no terms or
 licence. Revisit in Phase 4, when the PRD adds a commercial vendor.

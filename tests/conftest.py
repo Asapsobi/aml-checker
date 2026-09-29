@@ -14,6 +14,8 @@ from amlcheck.core.address import tron_from_hex
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TRONGRID = "https://api.trongrid.io"
+ETHERSCAN = "https://api.etherscan.io/v2/api"
+USDT_BSC = "0x55d398326f99059ff775485246999027b3197955"
 EAGLE_VIRTUAL = "https://eaglevirtual.com"
 USDT_TRON = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
 CREDIT_LINE = "Data from Eagle Virtual, https://eaglevirtual.com/license"
@@ -33,7 +35,7 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path / "home"
     monkeypatch.setenv("AMLCHECK_HOME", str(home))
     monkeypatch.delenv("AMLCHECK_CONFIG", raising=False)
-    for key in ("EAGLE_VIRTUAL_API_KEY", "TRONGRID_API_KEY"):
+    for key in ("EAGLE_VIRTUAL_API_KEY", "TRONGRID_API_KEY", "ETHERSCAN_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     return home
@@ -190,3 +192,74 @@ def mock_ofac(network: respx.MockRouter, status: int = 200) -> None:
     network.get("https://s3.test/SDN.XML").respond(
         status, content=content if status == 200 else b""
     )
+
+
+def token_row(
+    tx: str, when: datetime, sender: str, recipient: str, usdt: str, decimals: int = 18
+) -> dict[str, Any]:
+    """An Etherscan tokentx row for BSC USDT, shaped like those in etherscan/tokentx_usdt_page.json.
+    In this mock chain a block's number is its time in seconds, divided by ten."""
+    stamp = int(when.timestamp())
+    return {
+        "blockNumber": str(stamp // 10),
+        "timeStamp": str(stamp),
+        "hash": tx,
+        "from": sender,
+        "to": recipient,
+        "value": str(int(Decimal(usdt) * 10**decimals)),
+        "contractAddress": USDT_BSC,
+        "tokenName": "Tether USD",
+        "tokenSymbol": "USDT",
+        "tokenDecimal": str(decimals),
+    }
+
+
+class EtherscanMock:
+    """Etherscan V2 answering like the recordings in tests/fixtures/etherscan."""
+
+    def __init__(self, network: respx.MockRouter) -> None:
+        self.histories: dict[str, list[dict[str, Any]]] = {}  # address -> tokentx rows
+        self.first_normal: dict[str, int] = {}  # address -> time of its first transaction
+        self.block_at: str | None = None  # getblocknobytime's answer; by default the mock block
+        self.free_plan = False
+        self.rate_limited = 0  # answer this many requests with Etherscan's rate-limit refusal
+        self.calls: list[dict[str, str]] = []
+        network.get(ETHERSCAN).mock(side_effect=self._answer)
+
+    @staticmethod
+    def _ok(result: Any) -> httpx.Response:
+        return httpx.Response(200, json={"status": "1", "message": "OK", "result": result})
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        p = dict(request.url.params)
+        self.calls.append({k: v for k, v in p.items() if k != "apikey"})
+        if self.free_plan:
+            return httpx.Response(200, json=load("etherscan/error_free_plan_bsc.json"))
+        if self.rate_limited:
+            self.rate_limited -= 1
+            refusal = "Max calls per sec rate limit reached (5/sec)"
+            return httpx.Response(200, json={"status": "0", "message": "NOTOK", "result": refusal})
+        if p["module"] == "block":
+            return self._ok(self.block_at or str(int(p["timestamp"]) // 10))
+        none = load("etherscan/tokentx_none.json")
+        if p["action"] == "txlist":
+            first = self.first_normal.get(p["address"])
+            return (
+                self._ok([{"timeStamp": str(first)}]) if first else httpx.Response(200, json=none)
+            )
+        rows = self.histories.get(p["address"], [])
+        if "contractaddress" in p:
+            rows = [r for r in rows if r["contractAddress"] == p["contractaddress"].lower()]
+        start = int(p.get("startblock", 0))
+        end = int(p["endblock"]) if "endblock" in p else None
+        rows = [
+            r
+            for r in rows
+            if start <= int(r["blockNumber"]) and (end is None or int(r["blockNumber"]) <= end)
+        ]
+        rows = sorted(rows, key=lambda r: int(r["blockNumber"]), reverse=p.get("sort") != "asc")
+        page, offset = int(p.get("page", 1)), int(p.get("offset", 10_000))
+        if page * offset > 10_000:
+            return httpx.Response(200, json=load("etherscan/error_window.json"))
+        chunk = rows[(page - 1) * offset : page * offset]
+        return self._ok(chunk) if chunk else httpx.Response(200, json=none)

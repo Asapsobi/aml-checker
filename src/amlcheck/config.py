@@ -77,6 +77,10 @@ class Tron(_Section):
 
 class Bsc(_Section):
     usdt_contract: str = "0x55d398326f99059fF775485246999027B3197955"
+    etherscan_url: str = "https://api.etherscan.io/v2/api"
+    chain_id: int = 56
+    # Etherscan's Lite plan allows 5 calls a second: stay a little under it.
+    etherscan_requests_per_second: float = Field(default=4.0, gt=0)
 
 
 class Network(_Section):
@@ -167,6 +171,7 @@ class Secrets(BaseSettings):
 
     eagle_virtual_api_key: SecretStr | None = None
     trongrid_api_key: SecretStr | None = None
+    etherscan_api_key: SecretStr | None = None
 
 
 def load_secrets() -> Secrets:

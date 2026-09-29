@@ -31,6 +31,23 @@ Tests build further histories with `transfer_row` in `tests/conftest.py`, in the
 recordings. Tests that run the command line on the real clock shift every history, unchanged
 in shape, to just before the current date so it stays inside the 180-day lookback.
 
+## Etherscan (`etherscan/`)
+
+Recorded on 2026-09-29 from Etherscan's V2 API with a free-plan key, which covers Ethereum but
+not BSC, so they are Ethereum answers. The API and its row format are the same on every chain.
+
+| File | Request (`https://api.etherscan.io/v2/api?chainid=1&…`) |
+|---|---|
+| `tokentx_usdt_page.json` | `module=account&action=tokentx&contractaddress=<USDT>&address=0x2f38…6535&page=1&offset=200&sort=desc`: 200 USDT transfers of an OFAC-listed address |
+| `tokentx_first_lazarus.json`, `txlist_first_lazarus.json` | The first token transfer and the first transaction of the Lazarus Group address (`sort=asc&offset=1`) |
+| `tokentx_none.json` | `tokentx` for a never-used address: "No transactions found" |
+| `getblocknobytime.json` | `module=block&action=getblocknobytime&closest=after` |
+| `error_window.json` | Page 11 of 1,000: "Result window is too large" |
+| `error_free_plan_bsc.json` | `chainid=56` with the free-plan key: "Free API access is not supported for this chain" |
+
+None of them contains the key. Tests build BSC histories with `token_row` in `tests/conftest.py`,
+in the shape of `tokentx_usdt_page.json`.
+
 ## Eagle Virtual (`eagle_virtual/`)
 
 Data from Eagle Virtual, https://eaglevirtual.com/license. Their API description

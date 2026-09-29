@@ -10,6 +10,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
+from amlcheck.adapters.etherscan import Etherscan
 from amlcheck.adapters.tron import TronGrid
 from amlcheck.core.clock import from_iso, from_timestamp, iso
 from amlcheck.core.models import Chain
@@ -95,3 +96,31 @@ class TronHistory:
         return History(
             tuple(transfers), since, not truncated, min(starts) if starts else None, zero_value
         )
+
+
+class BscHistory:
+    """USDT on BSC from Etherscan (docs/verification.md, V11). BEP20 USDT has 18 decimals."""
+
+    chain = Chain.bsc
+
+    def __init__(self, etherscan: Etherscan, contract: str) -> None:
+        self._etherscan = etherscan
+        self._contract = contract.lower()
+
+    async def fetch(self, address: str, since: datetime, limit: int) -> History:
+        start = await self._etherscan.block_at(since)
+        (rows, truncated), first = await asyncio.gather(
+            self._etherscan.token_transfers(address, self._contract, start, limit),
+            self._etherscan.first_activity(address),
+        )
+        transfers = []
+        zero_value = 0
+        for row in rows:
+            amount = Decimal(row["value"]).scaleb(-int(row["tokenDecimal"]))
+            if amount == 0:
+                zero_value += 1
+                continue
+            time = from_timestamp(int(row["timeStamp"]))
+            sender, recipient = row["from"].lower(), row["to"].lower()
+            transfers.append(Transfer(row["hash"], time, sender, recipient, amount))
+        return History(tuple(transfers), since, not truncated, first, zero_value)

@@ -21,7 +21,7 @@ Phases 0 and 1 are done; Phase 2 is done for TRON. `amlcheck check` screens an a
 - on TRON, Tether's USDT blacklist
 - the address's own USDT transfers over 180 days: who it dealt with (R-EXP) and how it moved money (R-HEU)
 
-On BSC, the transfer history needs an Etherscan plan (Q4 in the verification report). Until then, a BSC check ends INCOMPLETE.
+On BSC, the transfer history comes from Etherscan and needs its Lite plan or above; the free plan does not cover BSC (Q4 in the verification report). Without it, a BSC check ends INCOMPLETE.
 
 ## Setup
 

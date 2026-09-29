@@ -14,6 +14,7 @@ from typing import Any
 
 import httpx
 
+from amlcheck.adapters.etherscan import EtherscanError
 from amlcheck.adapters.tron import TronGridError
 from amlcheck.config import Exposure, Heuristics
 from amlcheck.core import rules
@@ -52,6 +53,12 @@ class LookupFailed(Exception):
 
 # Eagle Virtual's verdict for a counterparty (PRD §11 remote lookups); raises LookupFailed.
 RemoteLookup = Callable[[str], Awaitable[str | None]]
+
+
+def plural(count: int, noun: str) -> str:
+    if count == 1:
+        return f"1 {noun}"
+    return f"{count:,} {noun[:-1]}ies" if noun.endswith("y") else f"{count:,} {noun}s"
 
 
 def usdt(amount: Decimal) -> str:
@@ -124,7 +131,7 @@ class ExposureAdapter:
         days = self._exposure.lookback_days
         try:
             history = await self._read(self._history, address, now - timedelta(days=days))
-        except (TronGridError, httpx.HTTPError) as e:
+        except (TronGridError, EtherscanError, httpx.HTTPError) as e:
             return self._result(SourceStatus.error, f"the transfer history could not be read: {e}")
 
         parties = counterparties(address.normalized, history.transfers)
@@ -139,7 +146,7 @@ class ExposureAdapter:
         findings += self._behaviour_findings(address, history, parties, flagged, now)
 
         count = len(history.transfers)
-        summary = f"{count:,} transfers with {len(parties):,} counterparties"
+        summary = f"{plural(count, 'transfer')} with {plural(len(parties), 'counterparty')}"
         summary += f"; {len(risky)} flagged" if risky else "; none flagged"
         status = SourceStatus.ok
         if not history.complete:
@@ -153,7 +160,7 @@ class ExposureAdapter:
             status,
             summary,
             as_of=now,
-            as_of_text=f"last {days} d, {count:,} transfers",
+            as_of_text=f"last {days} d, {plural(count, 'transfer')}",
             findings=tuple(findings),
             evidence_meta={
                 "lookback_days": days,

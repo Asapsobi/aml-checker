@@ -39,3 +39,5 @@ def setup(home: Path) -> None:
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
     logger.propagate = False
+    # httpx logs every request URL at INFO, and Etherscan's URLs carry the key: keep it quiet.
+    logging.getLogger("httpx").setLevel(logging.WARNING)

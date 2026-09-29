@@ -14,9 +14,11 @@ from conftest import (
     CREDIT_LINE,
     FUNNEL,
     EagleVirtualMock,
+    EtherscanMock,
     TronGridMock,
     load,
     mock_ofac,
+    token_row,
     transfer_row,
 )
 from typer.testing import CliRunner
@@ -33,6 +35,7 @@ CLEAN_TRON = "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW"  # given an ordinary, years-ol
 NEVER_USED = "TWWfj8kFnxwJr34hn1sw57rCHXSKercQsb"
 CLEAN_BSC = "0x7a3f9c2e8b1d4f6a0c5e9b2d7f1a3c8e6b4d2f90"
 LAZARUS = "0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
+LAZARUS_NEIGHBOUR = "0x098b716b8aaf21512996dc57eb0615e2383e2f97"  # one digit off: not listed
 USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
 FROZEN_TRON = (
     "eagle_virtual/check_frozen_tron.json",
@@ -55,6 +58,7 @@ def wide_console(monkeypatch: pytest.MonkeyPatch) -> None:
 class Services:
     tron: TronGridMock
     eagle: EagleVirtualMock
+    etherscan: EtherscanMock
 
 
 @pytest.fixture
@@ -65,6 +69,7 @@ def services(
     to wait out: the CLI runs on the real clock, so the TRON index head is "now"."""
     mock_ofac(network)
     monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "ev_live_test")
+    monkeypatch.setenv("ETHERSCAN_API_KEY", "TESTKEY1234567890ABCDEFGHIJKLMNOPQ")
     isolated.mkdir(exist_ok=True)
     (isolated / "config.toml").write_text("[eagle_virtual]\nrequests_per_second = 1000\n")
     now = utcnow()
@@ -78,7 +83,13 @@ def services(
         created=now - timedelta(days=700),
     )
     tron.move_histories(now)
-    return Services(tron, EagleVirtualMock(network))
+    etherscan = EtherscanMock(network)
+    etherscan.histories[CLEAN_BSC] = [
+        token_row("0xin", now - timedelta(days=10), LAZARUS_NEIGHBOUR, CLEAN_BSC, "1000"),
+        token_row("0xout", now - timedelta(days=5), CLEAN_BSC, LAZARUS_NEIGHBOUR, "100"),
+    ]
+    etherscan.first_normal[CLEAN_BSC] = int((now - timedelta(days=700)).timestamp())
+    return Services(tron, EagleVirtualMock(network), etherscan)
 
 
 @pytest.fixture
@@ -172,12 +183,28 @@ def test_clean_address_is_no_hits_with_the_disclaimer(synced: Services) -> None:
     assert CLEAN_TRON in listed.output
 
 
-def test_bsc_address_is_incomplete_until_bsc_has_a_history_source(synced: Services) -> None:
-    """Q4 is pending: without BSC transfer history the exposure source cannot answer."""
+def test_clean_bsc_address_is_no_hits(synced: Services) -> None:
+    result = runner.invoke(app, ["check", CLEAN_BSC])
+    assert result.exit_code == 0, result.output
+    assert "not applicable: BEP20 USDT cannot freeze an address" in result.output
+    assert "2 transfers with 1 counterparty; none flagged" in result.output
+
+
+def test_bsc_without_an_etherscan_key_is_incomplete(
+    synced: Services, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ETHERSCAN_API_KEY")
     result = runner.invoke(app, ["check", CLEAN_BSC])
     assert result.exit_code == 4, result.output
-    assert "not applicable: BEP20 USDT cannot freeze an address" in result.output
-    assert "BSC transfer history needs a data source" in result.output
+    assert "ETHERSCAN_API_KEY is not set" in result.output
+
+
+def test_bsc_with_a_free_plan_key_is_incomplete_and_says_why(synced: Services) -> None:
+    synced.etherscan.free_plan = True
+    result = runner.invoke(app, ["check", CLEAN_BSC])
+    assert result.exit_code == 4, result.output
+    assert "Free API access is not supported for this chain" in result.output
+    assert "TESTKEY1234567890" not in result.output
 
 
 def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:
@@ -218,7 +245,7 @@ def test_eth_listed_address_blocks_on_bsc(synced: Services) -> None:
     result = runner.invoke(app, ["check", LAZARUS, "--json"])
     assert result.exit_code == 5
     rules = {f["rule_id"] for f in json.loads(result.stdout)["findings"]}
-    assert rules == {"R-SAN-01", "R-FRZ-01", "R-SYS-01"}  # R-SYS-01: no BSC history yet (Q4)
+    assert rules == {"R-SAN-01", "R-FRZ-01", "R-HEU-01"}  # R-HEU-01: no BSC transfers in the mock
 
 
 def test_json_output_is_the_stable_contract(synced: Services) -> None:
@@ -335,7 +362,8 @@ def test_status_shows_every_source_and_never_a_key(synced: Services) -> None:
     assert "ok: 6 blacklist events" in line_for(result.output, "TRON USDT")
     assert "skipped: not applicable" in line_for(result.output, "BSC USDT")
     assert "ok: transfers over 180 days" in line_for(result.output, "Exposure (TRON)")
-    assert "error: BSC transfer history needs" in line_for(result.output, "Exposure (BSC)")
+    assert "ok: transfers over 180 days" in line_for(result.output, "Exposure (BSC)")
+    assert line_for(result.output, "ETHERSCAN_API_KEY").split()[-1] == "set"
 
 
 def test_status_explains_a_broken_config(isolated: Path) -> None:
