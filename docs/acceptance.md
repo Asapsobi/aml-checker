@@ -54,3 +54,21 @@ BSC exposure is tested against Envio HyperSync answers recorded on 2026-09-29, i
 - A Binance hot wallet: `INCOMPLETE` in 21 seconds, with the newest 5,000 transfers read.
 - A quiet exchange deposit address, 81 transfers: `NO_HITS` in 12 seconds.
 - A never-used address: `REVIEW (low)` in 8 seconds, with R-HEU-01 ("no activity on chain yet").
+
+## Phase 3 exit criteria
+
+| Criterion | Tested in | Live result, 2026-09-29 |
+|---|---|---|
+| A batch of 100 addresses completes within rate limits | `test_batch.py::test_a_batch_of_100_keeps_to_the_eagle_virtual_rate`: 100 addresses on a virtual clock, with every Eagle Virtual call at least a second after the one before (the Free plan's rate) | A batch of 8 real TRON and BSC addresses in 86 seconds: 4 BLOCK, 3 REVIEW and 1 NO_HITS, each as expected |
+| The export opens cleanly | `test_export.py::test_the_pdf_opens_and_reads_back` (40 checks, read back with pypdf), `test_cli.py::test_audit_export_in_every_format` | The PDF of those 8 checks: 3 pages, opened and rendered by macOS |
+| The watchlist flags a changed verdict | `test_cli.py::test_watch_run_reports_a_changed_verdict`: after Tether freezes a watched address, `watch run` shows NO_HITS → BLOCK, exits 6 and raises one notification | Not tried live: a real verdict change cannot be arranged on demand |
+
+The web page is tested in `test_web.py`:
+
+- the host-name check, the form token and the security headers
+- a check from the page, with HTMX and without JavaScript
+- the history filters
+- the explorer links, and escaping
+
+Live, a BSC check through the page gave the same REVIEW as the command line, with its evidence linked
+to BscScan. The first check took 35 seconds; later ones took 3.5 to 11 seconds, as on the command line.

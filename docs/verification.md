@@ -1,6 +1,6 @@
 # Phase 0 verification report
 
-> **Checked:** 2026-09-28, with V11–V13 added on 2026-09-29 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
+> **Checked:** 2026-09-28, with V11–V14 added on 2026-09-29 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
 
 This report checks every item that PRD §6 marks **verify**, plus the provider facts that §2 and §11
 rely on. Each item says where it was checked, what was found and what it changes in the build.
@@ -385,10 +385,48 @@ None of these gives a complete 180-day history without an account:
 
 **What this changes:** the owner created a free Envio account, and Q4's answer is HyperSync (V12).
 
+## V14. Checked before building Phase 3
+
+**Checked** on 2026-09-29.
+
+- **Web stack.** The current PyPI releases:
+  - FastAPI 0.141.1 (MIT)
+  - Starlette 1.7.0 (BSD-3-Clause)
+  - Jinja2 3.1.6 (BSD)
+  - python-multipart 0.0.32 (Apache-2.0)
+  - uvicorn 0.54.0 (BSD-3-Clause)
+
+  Starlette 1.x takes the request as the first argument of `TemplateResponse`. Its test client warns
+  that using `httpx` there is deprecated, so the tests call the app through `httpx.ASGITransport`.
+- **HTMX.** The newest release, 4.0.0 (2026-08-28), is a new major version. The 2.x line is still
+  maintained, and 2.0.10 (2026-09-06) is its newest release.
+  - amlcheck ships 2.0.10 taken from the npm registry. The tarball matches the registry's published
+    SHA-512, and `htmx.min.js` has SHA-256 `71ea6718…c0de`.
+  - Its licence is 0BSD.
+- **PDF.** ReportLab 5.0.1 (BSD) makes the PDF.
+  - fpdf2 2.8.8 is LGPL-3.0, which would add obligations to Phase 5's single-binary packaging.
+  - Tests read the PDF back with pypdf 6.19.0 (BSD-3-Clause, tests only).
+  - ReportLab's types come from types-reportlab.
+- **Explorer links.** Tronscan's own front end (`tronscan/tronscan-frontend`, `src/routes.js`) routes
+  `/transaction/:hash` and `/address/:id`, behind `#/`. BNB Chain's repositories link BscScan as
+  `https://bscscan.com/tx/…` and `/address/…`. Both sites sit behind Cloudflare's bot check, so they
+  were not fetched, and amlcheck never fetches them.
+- **macOS notifications.** `/usr/bin/osascript` with `display notification` works on macOS 26.6.2.
+  - The text is passed as arguments to an `on run argv` script, so it is never read as AppleScript.
+  - macOS lists these notifications under Script Editor.
+- **Scheduling.** launchd.plist(5) documents `Label`, `ProgramArguments`, `WorkingDirectory`,
+  `StartCalendarInterval`, `StandardOutPath` and `StandardErrorPath`. launchctl(1) documents
+  `bootstrap`, `bootout` and `kickstart`.
+  - Unlike cron, launchd runs a job missed while the computer slept as soon as it wakes.
+  - The example in docs/scheduling.md passes `plutil -lint`.
+
+**What this changes:** the web page, the PDF export and the watchlist alerts are built on these
+(D24–D32).
+
 ## Decisions
 
 These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0,
-D6–D12 in Phase 1 and D13–D23 in Phase 2.
+D6–D12 in Phase 1, D13–D23 in Phase 2 and D24–D32 in Phase 3.
 
 | # | Decision | Why |
 |---|---|---|
@@ -415,6 +453,15 @@ D6–D12 in Phase 1 and D13–D23 in Phase 2.
 | D21 | BSC transfer history comes from Envio HyperSync's free plan (`HYPERSYNC_API_TOKEN`), and the Etherscan code is removed | Free and complete (V12). The owner declined Etherscan's Lite plan, and no source without an account is complete (V13) |
 | D22 | A BSC address that shows more than `max_transfers` in the lookback is read newest first, window by window from the head down, each window read whole | HyperSync reads oldest first, and the newest transfers matter most. The result then matches TRON's: "only the newest 5,000 were read" |
 | D23 | First activity on BSC is the first transaction the address sent or received, or the first Transfer log of any token naming it. BNB paid to it by a contract call, which leaves no log, is not counted | The same definition as the Etherscan version had (transactions and token transfers), found in one HyperSync scan |
+| D24 | A check's client is part of its record's hash only when it is set | Records written before the column existed keep verifying (Q13) |
+| D25 | `batch` checks every row before screening any. It refuses a repeated address and ignores unknown columns | A typo cannot leave a half-screened batch, and a spreadsheet's extra columns do no harm |
+| D26 | `batch`, `watch run` and the web page screen one address at a time, sharing one Eagle Virtual rate limiter | Every free plan's rate holds, and the TRON index is never refreshed twice at once |
+| D27 | A CSV cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading `'` | A spreadsheet cannot run it as a formula (OWASP "CSV injection") |
+| D28 | A watched address starts from its latest check in the audit log. A first verdict is not a change. `watch run` exits 6 when a verdict changed | Adding an address costs no API call, and the exit status lets a scheduler or script react (Q12) |
+| D29 | Eagle Virtual's credit line is kept with each record, and exports print it. Older records get the line V4 recorded | Exports show Eagle Virtual data, and its licence requires the credit (V4) |
+| D30 | An export of a log that fails verification is still written. It says so, and the command exits 1 | The operator needs the data to investigate, and a script must not miss the failure |
+| D31 | The web page serves only the host names 127.0.0.1 and localhost, needs a start-up token on every POST, sends a strict Content-Security-Policy, and ships HTMX itself | Any page open in the operator's browser can send requests to 127.0.0.1 (DNS rebinding, cross-site requests) |
+| D32 | The PDF is set in Helvetica, which covers Latin scripts only | Notes or client names in other scripts may not show in the PDF. CSV and JSON keep them exactly |
 
 ## Open questions
 
@@ -433,6 +480,8 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q9 | PRD §15 Q1: should R-EXP-01 be BLOCK instead of REVIEW? | Phase 2 | Decided |
 | Q10 | What happens with an address that has more transfers than a check can read quickly? | Phase 2 | Decided |
 | Q11 | How does the "allowlist for own/known wallets" in `labels.csv` (§14) work? | Phase 2 | Decided |
+| Q12 | How should `watch run` report a verdict that changed? | Phase 3 | Decided |
+| Q13 | The PRD asks for exports "for a client" (U5), but checks record no client. How should a check name its client? | Phase 3 | Decided |
 
 ### Answers
 
@@ -486,6 +535,14 @@ INCOMPLETE, never a clean result over part of the history.
 
 **Q11, decided 2026-09-28.** Counterparties tagged `allowlist` in `labels.csv` are left out of
 R-HEU-02 to R-HEU-04. They never cancel a sanctions or freeze finding.
+
+**Q12, decided 2026-09-29.** A changed verdict is printed, kept in the audit log with the check
+behind it, and signalled by exit status 6 and, on macOS, a notification (options a and b). No
+messaging service or email is involved, so no new account or key is needed.
+
+**Q13, decided 2026-09-29.** `check` and `batch` take `--client "name"` (a `client` column in a
+batch file), and `watch add` keeps one too. `audit list`, `audit export` and the web page's history
+filter by it, ignoring case (D24).
 
 ## Phase 0 exit criteria
 

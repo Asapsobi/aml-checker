@@ -227,7 +227,7 @@ def to_pdf(
             ]
             for s in record.sources
         ]
-        table = Table(rows, colWidths=[32 * mm, 16 * mm, 30 * mm, 92 * mm], repeatRows=1)
+        table = Table(rows, colWidths=[30 * mm, 15 * mm, 37 * mm, 88 * mm], repeatRows=1)
         table.setStyle(
             TableStyle(
                 [
