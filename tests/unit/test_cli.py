@@ -25,7 +25,7 @@ from conftest import (
 )
 from typer.testing import CliRunner
 
-from amlcheck import __version__, cli
+from amlcheck import __version__, cli, watchlist
 from amlcheck.cli import app
 from amlcheck.core.clock import utcnow
 from amlcheck.storage import db
@@ -128,10 +128,6 @@ def test_python_dash_m_runs_the_same_cli(
     ("args", "phase"),
     [
         (["audit", "export"], 3),
-        (["watch", "add", CLEAN_TRON], 3),
-        (["watch", "remove", CLEAN_TRON], 3),
-        (["watch", "list"], 3),
-        (["watch", "run"], 3),
     ],
 )
 def test_later_phase_commands_fail_instead_of_pretending(args: list[str], phase: int) -> None:
@@ -248,6 +244,66 @@ def test_batch_screens_nothing_when_a_row_is_wrong(synced: Services, tmp_path: P
     assert "Nothing was screened" in result.output
     assert "line 3:" in result.output
     assert "No checks match." in runner.invoke(app, ["audit", "list"]).output
+
+
+@pytest.fixture
+def notices(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
+    """Notifications `watch run` would show, recorded instead of shown."""
+    shown: list[tuple[str, str]] = []
+
+    def record(title: str, message: str) -> bool:
+        shown.append((title, message))
+        return True
+
+    monkeypatch.setattr(watchlist, "notify", record)
+    return shown
+
+
+def test_the_watchlist_starts_from_the_audit_log(synced: Services) -> None:
+    assert runner.invoke(app, ["check", CHEIL_TRON]).exit_code == 5
+    added = runner.invoke(app, ["watch", "add", CHEIL_TRON, "--client", "ACME"]).output
+    assert f"Watching {CHEIL_TRON} (TRON): last verdict BLOCK" in added
+    fresh = runner.invoke(app, ["watch", "add", CLEAN_TRON]).output
+    assert "not checked yet" in fresh
+    again = runner.invoke(app, ["watch", "add", CLEAN_TRON, "--note", "approved 2026-09"]).output
+    assert "Already watched, details updated" in again
+    listed = runner.invoke(app, ["watch", "list"]).output
+    assert "ACME" in line_for(listed, CHEIL_TRON)
+    assert "approved 2026-09" in line_for(listed, CLEAN_TRON)
+    assert runner.invoke(app, ["watch", "remove", CLEAN_TRON]).exit_code == 0
+    gone = runner.invoke(app, ["watch", "remove", CLEAN_TRON])
+    assert gone.exit_code == 1
+    assert "is not on the watchlist" in gone.output
+
+
+def test_watch_run_reports_a_changed_verdict(
+    synced: Services, isolated: Path, notices: list[tuple[str, str]]
+) -> None:
+    (isolated / "config.toml").write_text(
+        "[eagle_virtual]\nrequests_per_second = 1000\n[cache]\ntarget_ttl_seconds = 0\n"
+    )
+    assert "The watchlist is empty" in runner.invoke(app, ["watch", "run"]).output
+    runner.invoke(app, ["watch", "add", CLEAN_TRON, "--client", "ACME"])
+    first = runner.invoke(app, ["watch", "run"])
+    assert first.exit_code == 0, first.output
+    assert "first check" in line_for(first.output, CLEAN_TRON)
+    assert "no verdict changed" in first.output
+    same = runner.invoke(app, ["watch", "run"])
+    assert same.exit_code == 0, same.output
+    synced.eagle.answers[CLEAN_TRON] = FROZEN_TRON  # Tether froze it since the last run
+    changed = runner.invoke(app, ["watch", "run"])
+    assert changed.exit_code == 6, changed.output
+    row = line_for(changed.output, CLEAN_TRON).split()
+    assert row[2:5] == ["NO_HITS", "BLOCK", "changed"]
+    assert "1 verdict changed" in changed.output
+    assert notices == [("amlcheck: 1 verdict changed", f"{CLEAN_TRON[:10]}… NO_HITS → BLOCK")]
+    listed = runner.invoke(app, ["watch", "list"]).output
+    assert "BLOCK" in line_for(listed, CLEAN_TRON)
+    checks = runner.invoke(app, ["audit", "list", "--client", "ACME"]).output
+    assert checks.count("watchlist re-screen") == 3
+    quiet = runner.invoke(app, ["watch", "run", "--no-notify"])
+    assert quiet.exit_code == 0  # BLOCK again: no change
+    assert len(notices) == 1
 
 
 def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:

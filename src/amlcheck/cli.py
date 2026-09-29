@@ -30,7 +30,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-from amlcheck import __version__, adapters, labels, logs
+from amlcheck import __version__, adapters, labels, logs, watchlist
 from amlcheck import batch as batches
 from amlcheck.adapters import ofac, tron
 from amlcheck.config import (
@@ -44,7 +44,7 @@ from amlcheck.config import (
 )
 from amlcheck.core import audit, engine
 from amlcheck.core.address import AddressError, parse
-from amlcheck.core.clock import iso
+from amlcheck.core.clock import iso, utcnow
 from amlcheck.core.models import Address, Chain, CheckResult, SourceHealth, Verdict
 from amlcheck.inputs import amount_hint, client_name
 from amlcheck.net import new_client
@@ -63,6 +63,7 @@ out = Console()
 err = Console(stderr=True)
 
 EXIT_FAILED = 1
+EXIT_CHANGED = 6  # `watch run`: a watched address's verdict changed (Q12)
 EXIT_FOR = {Verdict.NO_HITS: 0, Verdict.REVIEW: 3, Verdict.INCOMPLETE: 4, Verdict.BLOCK: 5}
 
 
@@ -132,6 +133,13 @@ def _amount(text: str | None) -> str | None:
         return amount_hint(text)
     except ValueError as e:
         _fail(f"--amount {e}")
+
+
+def _parsed(address: str, chain: Chain | None) -> Address:
+    try:
+        return parse(address, chain)
+    except AddressError as e:
+        _fail(str(e))
 
 
 def _client(text: str | None) -> str | None:
@@ -513,27 +521,142 @@ def watch_add(
     chain: Annotated[
         Chain | None, typer.Option(help="Set the chain instead of detecting it.")
     ] = None,
+    client: Annotated[str | None, typer.Option(help="Client the address belongs to.")] = None,
+    note: Annotated[str | None, typer.Option(help="Why it is watched.")] = None,
 ) -> None:
-    """Add an address to the watchlist."""
-    _not_built("watch add", phase=3)
+    """Watch an address. It starts from its latest check in the audit log, if it has one."""
+    parsed = _parsed(address, chain)
+    client_name = _client(client)
+    with closing(_database()) as conn:
+        watched, added = watchlist.add(
+            conn, parsed, client_name, (note or "").strip() or None, utcnow()
+        )
+    verb = "Watching" if added else "Already watched, details updated:"
+    if watched.last_verdict and watched.last_checked_at:
+        since = f"last verdict {watched.last_verdict}, {local(watched.last_checked_at)}"
+    else:
+        since = "not checked yet, so its next `watch run` sets its first verdict"
+    out.print(f"{verb} {parsed.display} ({parsed.chain.upper()}): {since}", soft_wrap=True)
 
 
 @watch_app.command("remove")
-def watch_remove(address: Annotated[str, typer.Argument(help="Address to stop watching.")]) -> None:
-    """Remove an address from the watchlist."""
-    _not_built("watch remove", phase=3)
+def watch_remove(
+    address: Annotated[str, typer.Argument(help="Address to stop watching.")],
+    chain: Annotated[
+        Chain | None, typer.Option(help="Set the chain instead of detecting it.")
+    ] = None,
+) -> None:
+    """Stop watching an address. Its checks stay in the audit log."""
+    parsed = _parsed(address, chain)
+    with closing(_database()) as conn:
+        if not watchlist.remove(conn, parsed):
+            _fail(f"{parsed.display} is not on the watchlist")
+    out.print(f"Stopped watching {parsed.display} ({parsed.chain.upper()})", soft_wrap=True)
 
 
 @watch_app.command("list")
 def watch_list() -> None:
     """Show watched addresses and their last verdicts."""
-    _not_built("watch list", phase=3)
+    with closing(_database()) as conn:
+        watched = watchlist.entries(conn)
+    if not watched:
+        out.print("The watchlist is empty. Add an address with `amlcheck watch add`.")
+        return
+    table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
+    for column in ("Address", "Chain", "Last verdict", "Last checked", "Client", "Note"):
+        table.add_column(column, overflow="fold")
+    for w in watched:
+        verdict = (
+            Text(w.last_verdict.value, VERDICT_STYLE[w.last_verdict])
+            if w.last_verdict
+            else Text("not checked yet", "dim")
+        )
+        checked = local(w.last_checked_at) if w.last_checked_at else ""
+        table.add_row(
+            w.address.display,
+            w.address.chain.upper(),
+            verdict,
+            checked,
+            w.client or "",
+            w.note or "",
+        )
+    out.print(table)
+
+
+async def _watch_run(
+    conn: sqlite3.Connection,
+    watched: list[watchlist.Watched],
+    config: Config,
+    secrets: Secrets,
+) -> list[watchlist.Outcome]:
+    columns = (SpinnerColumn(), TextColumn("{task.description}"), MofNCompleteColumn())
+    with Progress(*columns, console=err, transient=True) as progress:
+        task = progress.add_task("Re-screening", total=len(watched))
+        async with new_client(config.network.timeout_seconds) as http:
+            return await watchlist.run(
+                conn,
+                watched,
+                http=http,
+                config=config,
+                secrets=secrets,
+                done=lambda _: progress.advance(task),
+            )
 
 
 @watch_app.command("run")
-def watch_run() -> None:
-    """Re-screen every watched address and flag verdicts that changed."""
-    _not_built("watch run", phase=3)
+def watch_run(
+    notify: Annotated[
+        bool,
+        typer.Option(
+            "--notify/--no-notify", help="Show a macOS notification when a verdict changes."
+        ),
+    ] = True,
+) -> None:
+    """Re-screen every watched address and report the verdicts that changed.
+
+    Each check goes to the audit log. Exit status: 0 when no verdict changed, 6 when one did,
+    1 when the run could not start. To run it on a schedule, see docs/scheduling.md.
+    """
+    config = _config()
+    secrets = load_secrets()
+    with closing(_database()) as conn:
+        watched = watchlist.entries(conn)
+        if not watched:
+            out.print("The watchlist is empty. Add an address with `amlcheck watch add`.")
+            return
+        outcomes = asyncio.run(_watch_run(conn, watched, config, secrets))
+    table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
+    for column in ("Address", "Chain", "Before", "Now", "Findings", "Client"):
+        table.add_column(column, overflow="fold")
+    for o in outcomes:
+        before = o.watched.last_verdict
+        now = Text(o.result.verdict.value, VERDICT_STYLE[o.result.verdict])
+        if o.changed:
+            now.append("  changed", "bold")
+        table.add_row(
+            o.result.address.display,
+            o.result.address.chain.upper(),
+            before.value if before else Text("first check", "dim"),
+            now,
+            " ".join(dict.fromkeys(f.rule_id for f in o.result.findings)),
+            o.watched.client or "",
+        )
+    out.print(table)
+    changes = [o for o in outcomes if o.changed]
+    count = (
+        f"{len(changes)} verdict changed"
+        if len(changes) == 1
+        else f"{len(changes)} verdicts changed"
+    )
+    out.print(
+        f"\nRe-screened {len(outcomes):,} addresses: {count if changes else 'no verdict changed'}."
+    )
+    for line in sorted({a for o in outcomes for a in attributions(o.result)}):
+        out.print(Text(line, "dim"), soft_wrap=True)
+    if changes:
+        if notify:
+            watchlist.notify(f"amlcheck: {count}", watchlist.alert_text(changes))
+        raise typer.Exit(code=EXIT_CHANGED)
 
 
 @labels_app.command("import")
