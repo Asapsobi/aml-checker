@@ -474,6 +474,13 @@ def test_labels_import_takes_nothing_from_a_file_with_a_bad_row(
         assert conn.execute("SELECT COUNT(*) FROM labels").fetchone()[0] == 3
 
 
+def test_labels_import_names_the_file_line_past_blank_lines(tmp_path: Path) -> None:
+    path = tmp_path / "labels.csv"
+    path.write_text(LABELS + "\n\nTJwwz9NR37hjXdAV5gowj7src4avMuZZNW,eth,mixer,,\n")
+    result = runner.invoke(app, ["labels", "import", str(path)])
+    assert "line 7: the chain must be tron or bsc, not 'eth'" in result.output
+
+
 def test_labels_import_needs_the_header(tmp_path: Path) -> None:
     path = tmp_path / "labels.csv"
     path.write_text("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,tron,mixer\n")

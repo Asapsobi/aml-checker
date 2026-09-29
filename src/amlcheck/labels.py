@@ -34,7 +34,8 @@ def read_csv(path: Path) -> tuple[list[Label], list[str]]:
         missing = [name for name in REQUIRED if name not in (reader.fieldnames or [])]
         if missing:
             return [], [f"the header lacks {', '.join(missing)}: use address,chain,tag,note,source"]
-        for line, row in enumerate(reader, start=2):
+        for row in reader:
+            line = reader.line_num  # the file's own line: the reader skips blank lines
             chain_text = (row.get("chain") or "").strip().lower()
             tag = (row.get("tag") or "").strip().lower()
             try:
