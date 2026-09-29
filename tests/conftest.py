@@ -163,11 +163,14 @@ class TronGridMock:
 
 
 class EagleVirtualMock:
-    """Eagle Virtual answering CLEAR for any address, unless `answers` says otherwise."""
+    """Eagle Virtual answering CLEAR for any address, unless `answers` says otherwise. With a
+    `clock`, it keeps the time of every call in `times`."""
 
-    def __init__(self, network: respx.MockRouter) -> None:
+    def __init__(self, network: respx.MockRouter, clock: Callable[[], float] | None = None) -> None:
         # address -> (the /v1/check fixture, the /v1/address fixture)
         self.answers: dict[str, tuple[str, str]] = {}
+        self.clock = clock
+        self.times: list[float] = []
         network.get(url__regex=rf"{EAGLE_VIRTUAL}/v1/check/(?P<address>\w+)").mock(
             side_effect=self._check
         )
@@ -177,6 +180,8 @@ class EagleVirtualMock:
         network.get(f"{EAGLE_VIRTUAL}/v1/usage").respond(200, json=load("eagle_virtual/usage.json"))
 
     def _reply(self, fixture: str) -> httpx.Response:
+        if self.clock is not None:
+            self.times.append(self.clock())
         return httpx.Response(200, json=load(fixture), headers={"x-ev-credit-line": CREDIT_LINE})
 
     def _check(self, request: httpx.Request, address: str) -> httpx.Response:

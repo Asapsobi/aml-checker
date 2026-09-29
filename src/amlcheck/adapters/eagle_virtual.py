@@ -105,12 +105,14 @@ class EagleVirtualAdapter:
         *,
         max_retry_after: float,
         sleep: Sleep = asyncio.sleep,
+        limiter: RateLimiter | None = None,
     ) -> None:
         self._http = http
         self._key = key
         self._settings = settings
         self._cache = cache
-        self._limiter = RateLimiter(settings.requests_per_second, sleep=sleep)
+        # A batch passes one limiter to every check, so the plan's rate holds across them all.
+        self._limiter = limiter or RateLimiter(settings.requests_per_second, sleep=sleep)
         self._max_retry_after = max_retry_after
         self._sleep = sleep
 

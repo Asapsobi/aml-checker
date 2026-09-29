@@ -10,22 +10,28 @@ import json
 import sqlite3
 import tomllib
 from collections import Counter
-from contextlib import closing
+from contextlib import ExitStack, closing
 from datetime import UTC, datetime, time, timedelta
-from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated, NoReturn, TextIO
 
 import httpx
 import typer
 from pydantic import ValidationError
 from rich.console import Console
-from rich.progress import DownloadColumn, Progress, SpinnerColumn, TextColumn
+from rich.progress import (
+    DownloadColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+)
 from rich.table import Table
 from rich.text import Text
 
 from amlcheck import __version__, adapters, labels, logs
+from amlcheck import batch as batches
 from amlcheck.adapters import ofac, tron
 from amlcheck.config import (
     Config,
@@ -40,8 +46,9 @@ from amlcheck.core import audit, engine
 from amlcheck.core.address import AddressError, parse
 from amlcheck.core.clock import iso
 from amlcheck.core.models import Address, Chain, CheckResult, SourceHealth, Verdict
+from amlcheck.inputs import amount_hint, client_name
 from amlcheck.net import new_client
-from amlcheck.output import STATUS_STYLE, VERDICT_STYLE, local, render, to_json
+from amlcheck.output import STATUS_STYLE, VERDICT_STYLE, attributions, local, render, to_json
 from amlcheck.storage import db
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -56,7 +63,6 @@ out = Console()
 err = Console(stderr=True)
 
 EXIT_FAILED = 1
-MAX_CLIENT = 200  # characters in a client name
 EXIT_FOR = {Verdict.NO_HITS: 0, Verdict.REVIEW: 3, Verdict.INCOMPLETE: 4, Verdict.BLOCK: 5}
 
 
@@ -123,20 +129,16 @@ def _amount(text: str | None) -> str | None:
     if text is None:
         return None
     try:
-        value = Decimal(text.replace(",", ""))
-    except InvalidOperation:
-        _fail(f"--amount {text!r} is not a number")
-    if not value.is_finite() or value <= 0:
-        _fail("--amount must be a positive number")
-    return format(value, "f")
+        return amount_hint(text)
+    except ValueError as e:
+        _fail(f"--amount {e}")
 
 
 def _client(text: str | None) -> str | None:
-    """A client name as typed, without surrounding spaces; None when empty (Q13)."""
-    name = (text or "").strip()
-    if len(name) > MAX_CLIENT:
-        _fail(f"--client is longer than {MAX_CLIENT} characters")
-    return name or None
+    try:
+        return client_name(text)
+    except ValueError as e:
+        _fail(f"--client {e}")
 
 
 async def _screen(
@@ -194,15 +196,94 @@ def check(
     raise typer.Exit(code=EXIT_FOR[result.verdict])
 
 
+async def _batch(
+    rows: list[batches.Row],
+    conn: sqlite3.Connection,
+    config: Config,
+    secrets: Secrets,
+    results_file: TextIO | None,
+) -> list[CheckResult]:
+    writer = csv.DictWriter(results_file, batches.RESULT_COLUMNS) if results_file else None
+    if writer:
+        writer.writeheader()
+    columns = (SpinnerColumn(), TextColumn("{task.description}"), MofNCompleteColumn())
+    with Progress(*columns, console=err, transient=True) as progress:
+        task = progress.add_task("Screening", total=len(rows))
+
+        def done(row: batches.Row, result: CheckResult) -> None:
+            if writer and results_file:
+                writer.writerow(batches.result_row(row, result))
+                results_file.flush()
+            progress.advance(task)
+
+        async with new_client(config.network.timeout_seconds) as http:
+            return await batches.run(
+                rows, conn=conn, http=http, config=config, secrets=secrets, done=done
+            )
+
+
+def _show_batch(rows: list[batches.Row], results: list[CheckResult]) -> None:
+    table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
+    for column in ("Line", "Verdict", "Chain", "Address", "Findings"):
+        table.add_column(column, overflow="fold")
+    for row, result in zip(rows, results, strict=True):
+        table.add_row(
+            str(row.line),
+            Text(result.verdict.value, VERDICT_STYLE[result.verdict]),
+            result.address.chain.upper(),
+            result.address.display,
+            " ".join(dict.fromkeys(f.rule_id for f in result.findings)),
+        )
+    out.print(table)
+    counts = Counter(r.verdict for r in results)
+    tally = ", ".join(f"{counts[v]} {v}" for v in batches.WORST_FIRST if counts[v])
+    out.print(f"\nScreened {len(results):,} addresses: {tally}.", soft_wrap=True)
+    for line in sorted({a for r in results for a in attributions(r)}):
+        out.print(Text(line, "dim"), soft_wrap=True)
+
+
 @app.command()
 def batch(
-    file: Annotated[Path, typer.Argument(help="CSV file of addresses.")],
+    file: Annotated[
+        Path,
+        typer.Argument(help="CSV with an address column; chain, amount, note, client optional."),
+    ],
     out_file: Annotated[
-        Path | None, typer.Option("--out", help="Write results to this CSV.")
+        Path | None, typer.Option("--out", help="Also write one result row per address here.")
     ] = None,
+    client: Annotated[str | None, typer.Option(help="Client for rows that name none.")] = None,
 ) -> None:
-    """Screen every address in a CSV file."""
-    _not_built("batch", phase=3)
+    """Screen every address in a CSV file, one at a time.
+
+    Nothing is screened if any row is wrong. Every check goes to the audit log, and --out gets
+    each result as soon as it is ready. Exit status: the worst verdict found (0 NO_HITS,
+    3 REVIEW, 4 INCOMPLETE, 5 BLOCK), or 1 when the batch could not run.
+    """
+    default_client = _client(client)
+    try:
+        rows, problems = batches.read_csv(file, default_client)
+    except (OSError, UnicodeDecodeError, csv.Error) as e:
+        _fail(f"{file} could not be read: {e}")
+    if problems:
+        shown = problems[:20] + (
+            [f"... and {len(problems) - 20} more"] if len(problems) > 20 else []
+        )
+        _fail(f"Nothing was screened. Fix these rows in {file}:\n" + "\n".join(shown))
+    config = _config()
+    secrets = load_secrets()
+    with ExitStack() as stack:
+        results_file = None
+        if out_file:
+            try:
+                results_file = stack.enter_context(out_file.open("w", newline="", encoding="utf-8"))
+            except OSError as e:
+                _fail(f"{out_file} could not be written: {e}")
+        conn = stack.enter_context(closing(_database()))
+        results = asyncio.run(_batch(rows, conn, config, secrets, results_file))
+    _show_batch(rows, results)
+    if out_file:
+        out.print(f"Results written to {out_file}", soft_wrap=True)
+    raise typer.Exit(code=EXIT_FOR[batches.worst(r.verdict for r in results)])
 
 
 async def _sync_sanctions(
@@ -366,14 +447,14 @@ def audit_list(
     table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
     for column in ("Time", "Verdict", "Chain", "Address", "Check", "Client", "Amount", "Note"):
         table.add_column(column, overflow="fold")
-    for created, found, chain, addr, check_id, amount, note, client_name in rows:
+    for created, found, chain, addr, check_id, amount, note, for_client in rows:
         table.add_row(
             local(datetime.fromisoformat(created)),
             Text(found, VERDICT_STYLE[Verdict(found)]),
             chain.upper(),
             addr,
             check_id,
-            client_name or "",
+            for_client or "",
             amount or "",
             note or "",
         )
@@ -382,13 +463,13 @@ def audit_list(
         out.print(table)
         return
     # Too narrow for the table: one block per check, so no address or ID is broken across lines.
-    for created, found, chain, addr, check_id, amount, note, client_name in rows:
+    for created, found, chain, addr, check_id, amount, note, for_client in rows:
         when = local(datetime.fromisoformat(created))
         verdict_label = (f" {found} ", VERDICT_STYLE[Verdict(found)])
         out.print(Text.assemble(verdict_label, f"  {when}  {chain.upper()}"), soft_wrap=True)
         out.print(Text(addr), soft_wrap=True)
         out.print(Text(f"check {check_id}"), soft_wrap=True)
-        extras = [f"client {client_name}"] if client_name else []
+        extras = [f"client {for_client}"] if for_client else []
         extras += [f"amount {amount}"] if amount else []
         extras += [f"note: {note}"] if note else []
         if extras:

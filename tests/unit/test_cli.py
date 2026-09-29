@@ -1,3 +1,4 @@
+import csv
 import json
 import runpy
 import sqlite3
@@ -126,7 +127,6 @@ def test_python_dash_m_runs_the_same_cli(
 @pytest.mark.parametrize(
     ("args", "phase"),
     [
-        (["batch", "addresses.csv"], 3),
         (["audit", "export"], 3),
         (["watch", "add", CLEAN_TRON], 3),
         (["watch", "remove", CLEAN_TRON], 3),
@@ -208,6 +208,46 @@ def test_bsc_with_a_refused_token_is_incomplete_and_says_why(
     assert result.exit_code == 4, result.output
     assert "HyperSync answered HTTP 401: Your token is malformed" in result.output
     assert "hs-not-a-real-token" not in result.output
+
+
+def test_batch_screens_every_row_and_writes_the_results(synced: Services, tmp_path: Path) -> None:
+    source = tmp_path / "clients.csv"
+    source.write_text(
+        "Address,Chain,Amount,Note,Client,Name\n"
+        f"{CHEIL_TRON},,,,,Cheil\n"
+        f'{CLEAN_TRON},tron,"1,000",first deal,,Alice\n'
+        "\n"
+        f"{CLEAN_BSC},bsc,,,Other Ltd,Bob\n"
+    )
+    results = tmp_path / "results.csv"
+    run = ["batch", str(source), "--out", str(results), "--client", "ACME"]
+    result = runner.invoke(app, run)
+    assert result.exit_code == 5, result.output  # the worst verdict: BLOCK
+    assert "Screened 3 addresses: 1 BLOCK, 2 NO_HITS." in result.output
+    assert CREDIT_LINE in result.output
+    with results.open(newline="") as file:
+        written = list(csv.DictReader(file))
+    assert [(r["line"], r["verdict"], r["client"]) for r in written] == [
+        ("2", "BLOCK", "ACME"),
+        ("3", "NO_HITS", "ACME"),
+        ("5", "NO_HITS", "Other Ltd"),
+    ]
+    assert written[0]["findings"].startswith("R-SAN-01")
+    assert written[1]["amount"] == "1000"
+    listed = runner.invoke(app, ["audit", "list", "--client", "acme"]).output
+    for row in written[:2]:
+        assert row["check_id"] in listed
+    assert runner.invoke(app, ["audit", "verify"]).exit_code == 0
+
+
+def test_batch_screens_nothing_when_a_row_is_wrong(synced: Services, tmp_path: Path) -> None:
+    source = tmp_path / "clients.csv"
+    source.write_text(f"address,chain\n{CHEIL_TRON},tron\n{CLEAN_BSC},tron\n")
+    result = runner.invoke(app, ["batch", str(source)])
+    assert result.exit_code == 1
+    assert "Nothing was screened" in result.output
+    assert "line 3:" in result.output
+    assert "No checks match." in runner.invoke(app, ["audit", "list"]).output
 
 
 def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:
