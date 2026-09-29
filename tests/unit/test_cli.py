@@ -1,4 +1,5 @@
 import csv
+import io
 import json
 import runpy
 import sqlite3
@@ -23,6 +24,7 @@ from conftest import (
     mock_ofac,
     transfer_row,
 )
+from pypdf import PdfReader
 from typer.testing import CliRunner
 
 from amlcheck import __version__, cli, watchlist
@@ -122,18 +124,6 @@ def test_python_dash_m_runs_the_same_cli(
         runpy.run_module("amlcheck", run_name="__main__")
     assert exited.value.code == 0
     assert __version__ in capsys.readouterr().out
-
-
-@pytest.mark.parametrize(
-    ("args", "phase"),
-    [
-        (["audit", "export"], 3),
-    ],
-)
-def test_later_phase_commands_fail_instead_of_pretending(args: list[str], phase: int) -> None:
-    result = runner.invoke(app, args)
-    assert result.exit_code == 1
-    assert f"planned for Phase {phase}" in result.output
 
 
 def test_sync_builds_the_list_and_the_index(synced: Services) -> None:
@@ -304,6 +294,46 @@ def test_watch_run_reports_a_changed_verdict(
     quiet = runner.invoke(app, ["watch", "run", "--no-notify"])
     assert quiet.exit_code == 0  # BLOCK again: no change
     assert len(notices) == 1
+
+
+def test_audit_export_in_every_format(synced: Services, tmp_path: Path) -> None:
+    runner.invoke(app, ["check", CHEIL_TRON, "--client", "ACME"])
+    runner.invoke(app, ["check", CLEAN_TRON, "--client", "Other"])
+    shown = runner.invoke(app, ["audit", "export", "--client", "acme"])
+    assert shown.exit_code == 0, shown.output
+    rows = list(csv.DictReader(io.StringIO(shown.stdout)))
+    assert [(r["address"], r["verdict"], r["client"]) for r in rows] == [
+        (CHEIL_TRON, "BLOCK", "ACME")
+    ]
+    saved = tmp_path / "audit.json"
+    written = runner.invoke(app, ["audit", "export", "--format", "json", "--out", str(saved)])
+    assert written.exit_code == 0, written.output
+    data = json.loads(saved.read_text())
+    assert [r["check"]["client"] for r in data["records"]] == ["ACME", "Other"]
+    assert data["audit_log"]["intact"]
+    assert data["attribution"] == [CREDIT_LINE]
+    refused = runner.invoke(app, ["audit", "export", "--format", "pdf"])
+    assert refused.exit_code == 1
+    assert "--format pdf needs --out" in refused.output
+    pdf = tmp_path / "audit.pdf"
+    made = runner.invoke(app, ["audit", "export", "--format", "pdf", "--out", str(pdf)])
+    assert made.exit_code == 0, made.output
+    text = PdfReader(pdf).pages[0].extract_text()
+    assert CHEIL_TRON in text
+    assert "Audit log intact at export: 2 records" in text
+
+
+def test_audit_export_of_a_tampered_log_says_so(
+    synced: Services, isolated: Path, tmp_path: Path
+) -> None:
+    runner.invoke(app, ["check", CHEIL_TRON])
+    with closing(sqlite3.connect(isolated / "amlcheck.db")) as conn, conn:
+        conn.execute("UPDATE checks SET verdict = 'NO_HITS'")
+    saved = tmp_path / "audit.json"
+    result = runner.invoke(app, ["audit", "export", "--format", "json", "--out", str(saved)])
+    assert result.exit_code == 1
+    assert "The audit log is BROKEN" in result.output
+    assert json.loads(saved.read_text())["audit_log"]["intact"] is False
 
 
 def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:

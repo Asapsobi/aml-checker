@@ -24,6 +24,9 @@ from amlcheck.storage.cache import ResponseCache
 
 SOURCE = "eagle_virtual"
 LABEL = "Eagle Virtual"
+# The credit line the Free plan sends in x-ev-credit-line (V4). Records written before the line was
+# kept with them are credited with this text.
+CREDIT_LINE = "Data from Eagle Virtual, https://eaglevirtual.com/license"
 EVIDENCE_RECORDS = 5
 REFUSALS = {
     400: "Eagle Virtual cannot check this address",
@@ -178,6 +181,8 @@ class EagleVirtualAdapter:
                 "not_vouched_for": coverage.get("not_vouched_for") or [],
                 "url": body.get("url"),
                 "cached": answer.cached,
+                # Kept with the record, so an export can credit the data as the licence asks (V4).
+                "credit_line": answer.credit_line,
             },
         }
         if verdict is None:

@@ -1,11 +1,8 @@
-"""Command line (PRD §10.1).
-
-Every command exists so `amlcheck --help` shows the whole plan. Commands from later phases say so
-and exit non-zero rather than pretend to screen anything.
-"""
+"""Command line (PRD §10.1)."""
 
 import asyncio
 import csv
+import io
 import json
 import sqlite3
 import tomllib
@@ -30,7 +27,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-from amlcheck import __version__, adapters, labels, logs, watchlist
+from amlcheck import __version__, adapters, export, labels, logs, watchlist
 from amlcheck import batch as batches
 from amlcheck.adapters import ofac, tron
 from amlcheck.config import (
@@ -81,11 +78,6 @@ class ExportFormat(StrEnum):
 
 def _fail(message: str) -> NoReturn:
     err.print(Text(message, "red"), soft_wrap=True)
-    raise typer.Exit(code=EXIT_FAILED)
-
-
-def _not_built(command: str, phase: int) -> NoReturn:
-    err.print(f"amlcheck {command} is not built yet (planned for Phase {phase}).")
     raise typer.Exit(code=EXIT_FAILED)
 
 
@@ -411,17 +403,14 @@ def _day(text: str, option: str) -> datetime:
     return datetime.combine(day, time(), tzinfo=datetime.now(UTC).astimezone().tzinfo)
 
 
-@audit_app.command("list")
-def audit_list(
-    start: Annotated[str | None, typer.Option("--from", help="First day, YYYY-MM-DD.")] = None,
-    end: Annotated[str | None, typer.Option("--to", help="Last day, YYYY-MM-DD.")] = None,
-    address: Annotated[str | None, typer.Option(help="Only checks of this address.")] = None,
-    verdict: Annotated[
-        str | None, typer.Option(help="BLOCK, REVIEW, INCOMPLETE or NO_HITS.")
-    ] = None,
-    client: Annotated[str | None, typer.Option(help="Only checks for this client.")] = None,
-) -> None:
-    """Browse past checks, newest first."""
+def _filters(
+    start: str | None,
+    end: str | None,
+    address: str | None,
+    verdict: str | None,
+    client: str | None,
+) -> dict[str, str | None]:
+    """The audit filters as stored values: ISO times for [start, end), a normalised address."""
     filters = {
         "start": iso(_day(start, "--from")) if start else None,
         "end": iso(_day(end, "--to") + timedelta(days=1)) if end else None,
@@ -438,6 +427,21 @@ def audit_list(
         if verdict.upper() not in Verdict.__members__:
             _fail(f"--verdict must be one of {', '.join(Verdict)}")
         filters["verdict"] = verdict.upper()
+    return filters
+
+
+@audit_app.command("list")
+def audit_list(
+    start: Annotated[str | None, typer.Option("--from", help="First day, YYYY-MM-DD.")] = None,
+    end: Annotated[str | None, typer.Option("--to", help="Last day, YYYY-MM-DD.")] = None,
+    address: Annotated[str | None, typer.Option(help="Only checks of this address.")] = None,
+    verdict: Annotated[
+        str | None, typer.Option(help="BLOCK, REVIEW, INCOMPLETE or NO_HITS.")
+    ] = None,
+    client: Annotated[str | None, typer.Option(help="Only checks for this client.")] = None,
+) -> None:
+    """Browse past checks, newest first."""
+    filters = _filters(start, end, address, verdict, client)
     with closing(_database()) as conn:
         rows = conn.execute(
             "SELECT created_at, verdict, chain, address_norm, check_id, amount_hint,"
@@ -489,12 +493,59 @@ def audit_list(
 def audit_export(
     start: Annotated[str | None, typer.Option("--from", help="First day, YYYY-MM-DD.")] = None,
     end: Annotated[str | None, typer.Option("--to", help="Last day, YYYY-MM-DD.")] = None,
+    address: Annotated[str | None, typer.Option(help="Only checks of this address.")] = None,
+    verdict: Annotated[
+        str | None, typer.Option(help="BLOCK, REVIEW, INCOMPLETE or NO_HITS.")
+    ] = None,
+    client: Annotated[str | None, typer.Option(help="Only checks for this client.")] = None,
     export_format: Annotated[
         ExportFormat, typer.Option("--format", help="Output format.")
     ] = ExportFormat.csv,
+    out_file: Annotated[
+        Path | None, typer.Option("--out", help="Write to this file (required for PDF).")
+    ] = None,
 ) -> None:
-    """Export checks for a date range."""
-    _not_built("audit export", phase=3)
+    """Export past checks as CSV, JSON or PDF, oldest first.
+
+    JSON keeps every record exactly as stored, with its hashes, so each can be checked again. JSON
+    and PDF say whether the whole audit log verified at export time; if it did not, the export is
+    still written, and the exit status is 1.
+    """
+    filters = _filters(start, end, address, verdict, client)
+    if export_format is ExportFormat.pdf and out_file is None:
+        _fail("--format pdf needs --out, for example --out audit.pdf")
+    with closing(_database()) as conn:
+        found = list(audit.records(conn, **filters))
+        verification = audit.verify(conn)
+    scope = export.Scope(start, end, filters["address"], filters["verdict"], filters["client"])
+    now = utcnow()
+    content: str | bytes
+    if export_format is ExportFormat.csv:
+        text = io.StringIO()
+        export.write_csv(found, text)
+        content = text.getvalue()
+    elif export_format is ExportFormat.json:
+        content = json.dumps(
+            export.to_json(found, scope, verification, now), indent=2, ensure_ascii=False
+        )
+    else:
+        content = export.to_pdf(found, scope, verification, now)
+    if out_file is None:
+        typer.echo(content, nl=False)
+    else:
+        try:
+            if isinstance(content, bytes):
+                out_file.write_bytes(content)
+            else:
+                out_file.write_text(content, encoding="utf-8", newline="")
+        except OSError as e:
+            _fail(f"{out_file} could not be written: {e}")
+        err.print(f"Exported {len(found):,} checks to {out_file}", soft_wrap=True)
+    if not verification.intact:
+        _fail(
+            f"The audit log is BROKEN at check {verification.broken_check_id}:"
+            f" {verification.reason}. The export says so. Run `amlcheck audit verify`."
+        )
 
 
 @audit_app.command("verify")
