@@ -5,7 +5,9 @@ import csv
 import io
 import json
 import sqlite3
+import threading
 import tomllib
+import webbrowser
 from collections import Counter
 from contextlib import ExitStack, closing
 from datetime import UTC, datetime, time, timedelta
@@ -708,6 +710,28 @@ def watch_run(
         if notify:
             watchlist.notify(f"amlcheck: {count}", watchlist.alert_text(changes))
         raise typer.Exit(code=EXIT_CHANGED)
+
+
+@app.command()
+def web(
+    port: Annotated[int, typer.Option(help="Port on 127.0.0.1.", min=1024, max=65535)] = 8765,
+    open_browser: Annotated[
+        bool, typer.Option("--open/--no-open", help="Open the page in your browser.")
+    ] = True,
+) -> None:
+    """Open the local web page: a check form, the history, and each check's details.
+
+    It is served on 127.0.0.1 only, so only this computer can reach it. Stop it with Ctrl+C.
+    """
+    from amlcheck.web import serve  # the web stack loads only for this command
+
+    config = _config()
+    secrets = load_secrets()
+    url = f"http://127.0.0.1:{port}/"
+    out.print(f"amlcheck web page at {url}  (Ctrl+C stops it)", soft_wrap=True)
+    if open_browser:
+        threading.Timer(1.0, webbrowser.open, [url]).start()
+    serve(config, secrets, db_path(), port)
 
 
 @labels_app.command("import")

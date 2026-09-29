@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false, "selfRequestsOnly": true}'>
+  <title>{% block title %}amlcheck{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  <script src="{{ url_for('static', path='htmx.min.js') }}" defer></script>
+</head>
+<body>
+  <header>
+    <strong>amlcheck</strong>
+    <nav><a href="/">Check</a> <a href="/history">History</a></nav>
+  </header>
+  <main>{% block main %}{% endblock %}</main>
+  <footer>amlcheck {{ version }} · runs only on this computer · decision support, not a legal determination: NO_HITS is not a clearance</footer>
+</body>
+</html>

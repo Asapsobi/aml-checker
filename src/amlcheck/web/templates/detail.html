@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% macro tree(node) -%}
+{% if node.children %}
+<ul class="evidence">{% for child in node.children %}<li>{% if child.key %}<span class="key">{{ child.key }}</span> {% endif %}{{ tree(child) }}</li>{% endfor %}</ul>
+{%- elif node.href -%}
+<a href="{{ node.href }}" target="_blank" rel="noopener noreferrer">{{ node.text }}</a>
+{%- else -%}
+{{ node.text }}
+{%- endif %}
+{%- endmacro %}
+{% set c = check.record.check %}
+{% block title %}{{ c.verdict }} {{ c.address_norm }} · amlcheck{% endblock %}
+{% block main %}
+<h1><span class="verdict verdict-{{ c.verdict | lower }}">{{ c.verdict }}</span> <a class="address" href="{{ explorer(c.chain, c.address_norm) }}" target="_blank" rel="noopener noreferrer">{{ c.address_norm }}</a> ({{ c.chain | upper }})</h1>
+<p>{{ local(check.created) }} · check {{ c.check_id }}{% if c.client %} · client {{ c.client }}{% endif %}{% if c.amount_hint %} · amount {{ c.amount_hint }} USDT{% endif %}</p>
+{% if c.operator_note %}<p>Note: {{ c.operator_note }}</p>{% endif %}
+<table>
+  <thead><tr><th>Source</th><th>Status</th><th>As of</th><th>Result</th></tr></thead>
+  <tbody>
+  {% for s in check.sources %}
+    <tr><td>{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}</td><td class="status-{{ s.status }}">{{ s.status }}</td><td>{{ local(s.as_of) }}</td><td>{{ s.summary or '' }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<h2>Findings</h2>
+{% for f in check.findings %}
+<section class="finding">
+  <p><span class="severity severity-{{ f.severity | lower }}">{{ f.severity }}{% if f.priority %} ({{ f.priority }}){% endif %}</span> <strong>{{ f.rule_id }}</strong> {{ f.summary }}</p>
+  <details><summary>Evidence</summary>{{ tree(f.tree) }}</details>
+</section>
+{% else %}
+<p>None.</p>
+{% endfor %}
+<p class="hint">Record hash {{ check.record.record_hash }} · previous {{ check.record.prev_hash }} · amlcheck {{ c.tool_version }} · config {{ c.config_hash[:16] }}</p>
+{% for line in credits %}<p class="credit">{{ line }}</p>{% endfor %}
+{% endblock %}

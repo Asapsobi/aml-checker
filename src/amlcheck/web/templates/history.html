@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}History · amlcheck{% endblock %}
+{% block main %}
+<h1>History</h1>
+<form method="get" action="/history" class="filters">
+  <label>From <input type="date" name="start" value="{{ asked.start }}"></label>
+  <label>To <input type="date" name="end" value="{{ asked.end }}"></label>
+  <label>Address <input name="address" value="{{ asked.address }}" spellcheck="false"></label>
+  <label>Verdict
+    <select name="verdict">
+      <option value="">any</option>
+      {% for v in verdicts %}<option value="{{ v }}" {% if asked.verdict == v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Client <input name="client" value="{{ asked.client }}"></label>
+  <button type="submit">Filter</button>
+</form>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if checks %}
+<table>
+  <thead><tr><th>Time</th><th>Verdict</th><th>Chain</th><th>Address</th><th>Client</th><th>Amount</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for c in checks %}
+    <tr>
+      <td><a href="/checks/{{ c.check_id }}">{{ local(c.created) }}</a></td>
+      <td><span class="verdict verdict-{{ c.verdict | lower }}">{{ c.verdict }}</span></td>
+      <td>{{ c.chain | upper }}</td>
+      <td class="address">{{ c.address }}</td>
+      <td>{{ c.client or '' }}</td>
+      <td>{{ c.amount or '' }}</td>
+      <td>{{ c.note or '' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if checks | length == limit %}<p class="hint">Showing the newest {{ limit }}. Narrow the filters, or use <code>amlcheck audit export</code>.</p>{% endif %}
+{% elif not error %}
+<p>No checks match.</p>
+{% endif %}
+{% endblock %}

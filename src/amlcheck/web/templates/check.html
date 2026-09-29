@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block main %}
+<h1>Check an address</h1>
+<form method="post" action="/check" hx-post="/check" hx-target="#result" hx-indicator="#working" hx-disabled-elt="find button">
+  <input type="hidden" name="token" value="{{ token }}">
+  <label>Address <input name="address" value="{{ form.address or '' }}" required autocomplete="off" spellcheck="false" placeholder="T… or 0x…"></label>
+  <label>Chain
+    <select name="chain">
+      <option value="" {% if not form.chain %}selected{% endif %}>detect</option>
+      <option value="tron" {% if form.chain == 'tron' %}selected{% endif %}>TRON</option>
+      <option value="bsc" {% if form.chain == 'bsc' %}selected{% endif %}>BSC</option>
+    </select>
+  </label>
+  <label>Amount (USDT) <input name="amount" value="{{ form.amount or '' }}" inputmode="decimal"></label>
+  <label>Client <input name="client" value="{{ form.client or '' }}"></label>
+  <label>Note <input name="note" value="{{ form.note or '' }}"></label>
+  <button type="submit">Check</button>
+  <span id="working" class="htmx-indicator">Checking… this can take up to a minute.</span>
+</form>
+<div id="result">{% include "_result.html" %}</div>
+{% endblock %}

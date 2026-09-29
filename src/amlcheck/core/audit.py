@@ -150,17 +150,26 @@ def records(
     address: str | None = None,
     verdict: str | None = None,
     client: str | None = None,
+    check_id: str | None = None,
 ) -> Iterator[Stored]:
     """Stored records, oldest first: all of them, or those created in [start, end) (ISO times)
-    for an address, a verdict or a client (ignoring case)."""
+    for an address, a verdict or a client (ignoring case), or one check."""
     query = conn.execute(
         "SELECT seq, check_id, created_at, address_norm, chain, verdict, amount_hint,"
         " operator_note, tool_version, config_hash, client, prev_hash, record_hash FROM checks"
         " WHERE (:start IS NULL OR created_at >= :start) AND (:end IS NULL OR created_at < :end)"
         " AND (:address IS NULL OR address_norm = :address)"
         " AND (:verdict IS NULL OR verdict = :verdict)"
-        " AND (:client IS NULL OR client = :client COLLATE NOCASE) ORDER BY seq",
-        {"start": start, "end": end, "address": address, "verdict": verdict, "client": client},
+        " AND (:client IS NULL OR client = :client COLLATE NOCASE)"
+        " AND (:check_id IS NULL OR check_id = :check_id) ORDER BY seq",
+        {
+            "start": start,
+            "end": end,
+            "address": address,
+            "verdict": verdict,
+            "client": client,
+            "check_id": check_id,
+        },
     )
     for seq, *values, client_name, prev_hash, stored_hash in query.fetchall():
         check = dict(zip(CHECK_FIELDS, values, strict=True))

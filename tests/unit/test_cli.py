@@ -5,24 +5,24 @@ import runpy
 import sqlite3
 import sys
 from contextlib import closing
-from dataclasses import dataclass
-from datetime import timedelta
 from pathlib import Path
 
 import pytest
 import respx
 from conftest import (
     BLACKLISTED,
+    CHEIL_TRON,
+    CLEAN_BSC,
+    CLEAN_TRON,
     CREDIT_LINE,
+    FROZEN_TRON,
     FUNNEL,
-    HYPERSYNC_TOKEN,
-    EagleVirtualMock,
-    HyperSyncMock,
+    LAZARUS,
+    NEVER_USED,
+    Services,
     TronGridMock,
-    bsc_transfer,
     load,
     mock_ofac,
-    transfer_row,
 )
 from pypdf import PdfReader
 from typer.testing import CliRunner
@@ -34,18 +34,6 @@ from amlcheck.storage import db
 
 runner = CliRunner()
 
-CHEIL_TRON = "TA3941uFAvmVibSkQ6fMJXxmaSNovX86mz"  # on the OFAC sample list as USDT
-CLEAN_TRON = "TJwwz9NR37hjXdAV5gowj7src4avMuZZNW"  # given an ordinary, years-old history below
-NEVER_USED = "TWWfj8kFnxwJr34hn1sw57rCHXSKercQsb"
-CLEAN_BSC = "0x7a3f9c2e8b1d4f6a0c5e9b2d7f1a3c8e6b4d2f90"
-LAZARUS = "0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
-LAZARUS_NEIGHBOUR = "0x098b716b8aaf21512996dc57eb0615e2383e2f97"  # one digit off: not listed
-USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
-FROZEN_TRON = (
-    "eagle_virtual/check_frozen_tron.json",
-    "eagle_virtual/address_frozen_tron.json",
-)
-
 
 def line_for(output: str, label: str) -> str:
     return next(line for line in output.splitlines() if line.startswith(label))
@@ -56,51 +44,6 @@ def wide_console(monkeypatch: pytest.MonkeyPatch) -> None:
     """The runner has no terminal, so Rich would fold long addresses at 80 columns."""
     for console in (cli.out, cli.err):
         monkeypatch.setattr(console, "width", 250)
-
-
-@dataclass
-class Services:
-    tron: TronGridMock
-    eagle: EagleVirtualMock
-    hypersync: HyperSyncMock
-
-
-@pytest.fixture
-def services(
-    network: respx.MockRouter, isolated: Path, monkeypatch: pytest.MonkeyPatch
-) -> Services:
-    """Mocked OFAC, TronGrid and Eagle Virtual, a key for Eagle Virtual, and no rate limit
-    to wait out: the CLI runs on the real clock, so the TRON index head is "now"."""
-    mock_ofac(network)
-    monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "ev_live_test")
-    monkeypatch.setenv("HYPERSYNC_API_TOKEN", HYPERSYNC_TOKEN)
-    isolated.mkdir(exist_ok=True)
-    (isolated / "config.toml").write_text("[eagle_virtual]\nrequests_per_second = 1000\n")
-    now = utcnow()
-    tron = TronGridMock(network, head_time=now)
-    tron.add_history(
-        CLEAN_TRON,
-        [
-            transfer_row("in", now - timedelta(days=10), USDT_CONTRACT, CLEAN_TRON, "1000"),
-            transfer_row("out", now - timedelta(days=5), CLEAN_TRON, CHEIL_TRON[:-1] + "a", "100"),
-        ],
-        created=now - timedelta(days=700),
-    )
-    tron.move_histories(now)
-    hypersync = HyperSyncMock(network, int(now.timestamp()))
-    hypersync.transfers = [
-        bsc_transfer("0xin", now - timedelta(days=10), LAZARUS_NEIGHBOUR, CLEAN_BSC, "1000"),
-        bsc_transfer("0xout", now - timedelta(days=5), CLEAN_BSC, LAZARUS_NEIGHBOUR, "100"),
-    ]
-    hypersync.first_tx[CLEAN_BSC] = int((now - timedelta(days=700)).timestamp())
-    return Services(tron, EagleVirtualMock(network), hypersync)
-
-
-@pytest.fixture
-def synced(services: Services) -> Services:
-    result = runner.invoke(app, ["sync"])
-    assert result.exit_code == 0, result.output
-    return services
 
 
 def test_help_lists_every_prd_command() -> None:
