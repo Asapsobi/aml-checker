@@ -163,6 +163,7 @@ async def run(
             secrets=secrets,
             sleep=sleep,
             eagle_limiter=eagle,
+            two_hop=adapters.wants_two_hop(config, row.amount),
         )
         result = await engine.screen(
             row.address,

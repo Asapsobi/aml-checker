@@ -5,6 +5,7 @@ import asyncio
 import sqlite3
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import httpx
 
@@ -28,6 +29,12 @@ BSC_HISTORY_MISSING = (
     "HYPERSYNC_API_TOKEN is not set: BSC transfer history needs a free Envio HyperSync token"
     " (docs/verification.md, V12)"
 )
+
+
+def wants_two_hop(config: Config, amount: str | None) -> bool:
+    """Whether a check of this amount includes the 2-hop walk (Q15). 0 turns it off."""
+    least = Decimal(str(config.two_hop.auto_amount_usdt))
+    return amount is not None and least > 0 and Decimal(amount) >= least
 
 
 def tron_grid(

@@ -5,6 +5,7 @@ import runpy
 import sqlite3
 import sys
 from contextlib import closing
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ from conftest import (
     NEVER_USED,
     Services,
     TronGridMock,
+    bsc_transfer,
     load,
     mock_ofac,
 )
@@ -277,6 +279,45 @@ def test_audit_export_of_a_tampered_log_says_so(
     assert result.exit_code == 1
     assert "The audit log is BROKEN" in result.output
     assert json.loads(saved.read_text())["audit_log"]["intact"] is False
+
+
+MIDDLEMAN = "0x3333333333333333333333333333333333333333"
+
+
+def paid_through_a_middleman(services: Services) -> None:
+    """LAZARUS (on the OFAC list) paid the middleman 5,000 USDT, who paid CLEAN_BSC 2,000."""
+    now = utcnow()
+    services.hypersync.transfers += [
+        bsc_transfer("0xdirty", now - timedelta(days=20), LAZARUS, MIDDLEMAN, "5000"),
+        bsc_transfer("0xpay", now - timedelta(days=3), MIDDLEMAN, CLEAN_BSC, "2000"),
+    ]
+
+
+def test_investigate_walks_two_hops(synced: Services) -> None:
+    paid_through_a_middleman(synced)
+    result = runner.invoke(app, ["investigate", CLEAN_BSC])
+    assert result.exit_code == 3, result.output  # REVIEW
+    assert "the 2-hop walk is included" in result.output
+    assert "R-EXP-03" in line_for(result.output, " REVIEW           R-EXP-03")
+    walk = line_for(result.output, MIDDLEMAN)
+    assert "read" in walk
+    assert f"{LAZARUS.lower()} 5,000.00" in walk
+    assert "1 received USDT from a flagged wallet" in line_for(result.output, "Exposure (2-hop)")
+    data = json.loads(runner.invoke(app, ["investigate", CLEAN_BSC, "--json"]).stdout)
+    walked = next(s for s in data["sources"] if s["source"] == "exposure_2hop")
+    assert walked["status"] == "ok"
+    assert {n["id"] for n in walked["meta"]["graph"]["nodes"]} >= {MIDDLEMAN, LAZARUS.lower()}
+
+
+def test_a_large_amount_includes_the_walk(synced: Services) -> None:
+    paid_through_a_middleman(synced)
+    large = runner.invoke(app, ["check", CLEAN_BSC, "--amount", "20,000"])
+    assert large.exit_code == 3, large.output
+    assert "The amount is large, so the 2-hop walk is included" in large.output
+    assert "Exposure (2-hop)" in large.output
+    small = runner.invoke(app, ["check", CLEAN_BSC, "--amount", "500"])
+    assert small.exit_code == 0, small.output
+    assert "Exposure (2-hop)" not in small.output
 
 
 def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:

@@ -47,7 +47,15 @@ from amlcheck.core.clock import iso, utcnow
 from amlcheck.core.models import Address, Chain, CheckResult, SourceHealth, Verdict
 from amlcheck.inputs import amount_hint, client_name
 from amlcheck.net import new_client
-from amlcheck.output import STATUS_STYLE, VERDICT_STYLE, attributions, local, render, to_json
+from amlcheck.output import (
+    STATUS_STYLE,
+    VERDICT_STYLE,
+    attributions,
+    local,
+    render,
+    render_walk,
+    to_json,
+)
 from amlcheck.storage import db
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -151,14 +159,50 @@ async def _screen(
     amount: str | None,
     note: str | None,
     client: str | None,
+    two_hop: bool,
 ) -> CheckResult:
     async with new_client(config.network.timeout_seconds) as http:
         sources = adapters.build(
-            address.chain, conn=conn, http=http, config=config, secrets=secrets
+            address.chain, conn=conn, http=http, config=config, secrets=secrets, two_hop=two_hop
         )
         return await engine.screen(
             address, sources, conn=conn, config=config, amount=amount, note=note, client=client
         )
+
+
+def _run_check(
+    address: str,
+    chain: Chain | None,
+    amount: str | None,
+    note: str | None,
+    client: str | None,
+    json_output: bool,
+    *,
+    investigate: bool,
+) -> NoReturn:
+    parsed = _parsed(address, chain)
+    amount_hint = _amount(amount)
+    client_name = _client(client)
+    config = _config()
+    secrets = load_secrets()
+    two_hop = investigate or adapters.wants_two_hop(config, amount_hint)
+    if two_hop and not json_output:
+        budget = config.two_hop.time_budget_seconds
+        why = "" if investigate else "The amount is large, so "
+        err.print(
+            f"{why}the 2-hop walk is included: this can take up to {budget:g} seconds.",
+            soft_wrap=True,
+        )
+    with closing(_database()) as conn:
+        result = asyncio.run(
+            _screen(parsed, conn, config, secrets, amount_hint, note, client_name, two_hop)
+        )
+    if json_output:
+        typer.echo(json.dumps(to_json(result), indent=2, ensure_ascii=False))
+    else:
+        render(result, out)
+        render_walk(result, out)
+    raise typer.Exit(code=EXIT_FOR[result.verdict])
 
 
 @app.command()
@@ -178,24 +222,34 @@ def check(
 ) -> None:
     """Screen one address. The chain is detected from the address format.
 
-    Every check is written to the audit log before its result is shown. Exit status:
+    Every check is written to the audit log before its result is shown. An --amount of at least
+    [two_hop] auto_amount_usdt (10,000 by default) includes the 2-hop walk. Exit status:
     0 NO_HITS, 3 REVIEW, 4 INCOMPLETE, 5 BLOCK, 1 when the check could not run.
     """
-    try:
-        parsed = parse(address, chain)
-    except AddressError as e:
-        _fail(str(e))
-    amount_hint = _amount(amount)
-    client_name = _client(client)
-    config = _config()
-    secrets = load_secrets()
-    with closing(_database()) as conn:
-        result = asyncio.run(_screen(parsed, conn, config, secrets, amount_hint, note, client_name))
-    if json_output:
-        typer.echo(json.dumps(to_json(result), indent=2, ensure_ascii=False))
-    else:
-        render(result, out)
-    raise typer.Exit(code=EXIT_FOR[result.verdict])
+    _run_check(address, chain, amount, note, client, json_output, investigate=False)
+
+
+@app.command()
+def investigate(
+    address: Annotated[str, typer.Argument(help="TRON (T...) or BSC (0x...) address.")],
+    chain: Annotated[
+        Chain | None, typer.Option(help="Set the chain instead of detecting it.")
+    ] = None,
+    amount: Annotated[
+        str | None, typer.Option(help="Planned amount in USDT, kept in the audit log.")
+    ] = None,
+    note: Annotated[str | None, typer.Option(help="Operator note, kept in the audit log.")] = None,
+    client: Annotated[
+        str | None, typer.Option(help="Client the check is for; exports can filter by it.")
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print the JSON result.")] = False,
+) -> None:
+    """A check with the 2-hop walk: whom the address's largest counterparties received USDT from.
+
+    It reads the histories of the 20 largest counterparties, so it takes up to two minutes. It is
+    kept in the audit log like any check, with the same exit status.
+    """
+    _run_check(address, chain, amount, note, client, json_output, investigate=True)
 
 
 async def _batch(

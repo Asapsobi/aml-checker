@@ -1,6 +1,7 @@
 """A check result for people (PRD §10.2) and as the stable JSON contract (§10.3)."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from rich.console import Console
@@ -96,6 +97,48 @@ def render(result: CheckResult, console: Console) -> None:
     for line in attributions(result):
         console.print()
         console.print(Text(line, "dim"), soft_wrap=True)
+
+
+WALK_STATE = {
+    "read": "read",
+    "flagged": "flagged itself (R-EXP-01)",
+    "hub": "a hub, not read",
+    "not_reached": "not reached in time",
+    "failed": "could not be read",
+}
+
+
+def _usdt(text: str) -> str:
+    return f"{Decimal(text):,.2f}"
+
+
+def render_walk(result: CheckResult, console: Console) -> None:
+    """The 2-hop walk, when the check had one: each counterparty in scope, and the sanctioned or
+    frozen wallets that paid it (R-EXP-03)."""
+    walk = next((s for s in result.sources if s.source == "exposure_2hop"), None)
+    graph = walk.evidence_meta.get("graph") if walk else None
+    if not graph:
+        return
+    target = graph["nodes"][0]["id"]
+    table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
+    for column in ("Counterparty", "Received from it", "Sent to it", "Walk", "Paid by flagged"):
+        table.add_column(column, overflow="fold")
+    for node in (n for n in graph["nodes"] if n["ring"] == 1):
+        edge = next(e for e in graph["edges"] if e["from"] == node["id"] and e["to"] == target)
+        paid = [e for e in graph["edges"] if e["to"] == node["id"]]
+        table.add_row(
+            node["id"],
+            _usdt(edge["received_usdt"]),
+            _usdt(edge["sent_usdt"]),
+            WALK_STATE.get(node["state"], node["state"]),
+            Text(
+                "; ".join(f"{e['from']} {_usdt(e['received_usdt'])}" for e in paid) or "-",
+                "bold red" if paid else "",
+            ),
+        )
+    console.print()
+    console.print(Text("2-hop walk", "bold"))
+    console.print(table)
 
 
 def to_json(result: CheckResult) -> dict[str, Any]:
