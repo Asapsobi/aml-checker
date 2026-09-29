@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from amlcheck.adapters.etherscan import EtherscanError
+from amlcheck.adapters.hypersync import HyperSyncError
 from amlcheck.adapters.tron import TronGridError
 from amlcheck.config import Exposure, Heuristics
 from amlcheck.core import rules
@@ -131,7 +131,7 @@ class ExposureAdapter:
         days = self._exposure.lookback_days
         try:
             history = await self._read(self._history, address, now - timedelta(days=days))
-        except (TronGridError, EtherscanError, httpx.HTTPError) as e:
+        except (TronGridError, HyperSyncError, httpx.HTTPError) as e:
             return self._result(SourceStatus.error, f"the transfer history could not be read: {e}")
 
         parties = counterparties(address.normalized, history.transfers)

@@ -77,10 +77,9 @@ class Tron(_Section):
 
 class Bsc(_Section):
     usdt_contract: str = "0x55d398326f99059fF775485246999027B3197955"
-    etherscan_url: str = "https://api.etherscan.io/v2/api"
-    chain_id: int = 56
-    # Etherscan's Lite plan allows 5 calls a second: stay a little under it.
-    etherscan_requests_per_second: float = Field(default=4.0, gt=0)
+    # Envio HyperSync, for the transfer history (docs/verification.md, V12). The same service also
+    # answers at https://56.hypersync.xyz.
+    hypersync_url: str = "https://bsc.hypersync.xyz"
 
 
 class Network(_Section):
@@ -171,7 +170,7 @@ class Secrets(BaseSettings):
 
     eagle_virtual_api_key: SecretStr | None = None
     trongrid_api_key: SecretStr | None = None
-    etherscan_api_key: SecretStr | None = None
+    hypersync_api_token: SecretStr | None = None
 
 
 def load_secrets() -> Secrets:

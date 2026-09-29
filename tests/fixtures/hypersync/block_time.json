@@ -1,0 +1,22 @@
+{
+ "data": [
+  {
+   "blocks": [
+    {
+     "number": 124705000,
+     "timestamp": "0x6abb9a68"
+    }
+   ]
+  }
+ ],
+ "archive_height": 124705010,
+ "next_block": 124705001,
+ "total_execution_time": 1,
+ "rollback_guard": {
+  "block_number": 124705000,
+  "timestamp": 1790679656,
+  "hash": "0x78fafcca997760aba3aa4a96d9bfab08a6484e0dcbcec77ef10258b2a0c566ae",
+  "first_block_number": 124705000,
+  "first_parent_hash": "0x2dac83eb61e2f32d7346b142e45d521d6c0cc8b08c0d30cdd0f8ecacbbbb05f7"
+ }
+}

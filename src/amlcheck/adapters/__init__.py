@@ -11,8 +11,8 @@ import httpx
 from amlcheck.adapters.base import SourceAdapter
 from amlcheck.adapters.bsc import BscUsdtAdapter
 from amlcheck.adapters.eagle_virtual import EagleVirtualAdapter
-from amlcheck.adapters.etherscan import Etherscan
 from amlcheck.adapters.exposure import ExposureAdapter
+from amlcheck.adapters.hypersync import HyperSync
 from amlcheck.adapters.ofac import OfacAdapter
 from amlcheck.adapters.tron import TronGrid, TronUsdtAdapter
 from amlcheck.config import Config, Secrets
@@ -23,8 +23,8 @@ from amlcheck.net import Sleep
 from amlcheck.storage.cache import ResponseCache
 
 BSC_HISTORY_MISSING = (
-    "ETHERSCAN_API_KEY is not set: BSC transfer history needs an Etherscan key on the Lite plan"
-    " or above (docs/verification.md, Q4)"
+    "HYPERSYNC_API_TOKEN is not set: BSC transfer history needs a free Envio HyperSync token"
+    " (docs/verification.md, V12)"
 )
 
 
@@ -71,17 +71,15 @@ def build(
         history = TronHistory(grid, config.tron.usdt_contract)
     else:
         sources.append(BscUsdtAdapter())
-        if secrets.etherscan_api_key is not None:
-            etherscan = Etherscan(
+        if secrets.hypersync_api_token is not None:
+            hypersync = HyperSync(
                 http,
-                config.bsc.etherscan_url,
-                secrets.etherscan_api_key,
-                config.bsc.chain_id,
-                per_second=config.bsc.etherscan_requests_per_second,
+                config.bsc.hypersync_url,
+                secrets.hypersync_api_token,
                 max_retry_after=config.network.max_retry_after_seconds,
                 sleep=sleep,
             )
-            history = BscHistory(etherscan, config.bsc.usdt_contract)
+            history = BscHistory(hypersync, config.bsc.usdt_contract)
     lookups = config.eagle_virtual.max_remote_counterparty_lookups
     sources.append(
         ExposureAdapter(

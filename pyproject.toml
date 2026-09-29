@@ -34,7 +34,8 @@ extend-exclude = ["docs"]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "DTZ", "PT", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# Tests assert, and use made-up tokens (S105, S106).
+"tests/**" = ["S101", "S105", "S106"]
 # Verification scripts only open the fixed https URLs written in them.
 "scripts/**" = ["S310"]
 

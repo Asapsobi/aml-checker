@@ -1,5 +1,6 @@
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -14,7 +15,8 @@ from amlcheck.core.address import tron_from_hex
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TRONGRID = "https://api.trongrid.io"
-ETHERSCAN = "https://api.etherscan.io/v2/api"
+HYPERSYNC = "https://bsc.hypersync.xyz"
+HYPERSYNC_TOKEN = "hs-test-0123456789abcdef0123456789ab"
 USDT_BSC = "0x55d398326f99059ff775485246999027b3197955"
 EAGLE_VIRTUAL = "https://eaglevirtual.com"
 USDT_TRON = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
@@ -35,7 +37,7 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path / "home"
     monkeypatch.setenv("AMLCHECK_HOME", str(home))
     monkeypatch.delenv("AMLCHECK_CONFIG", raising=False)
-    for key in ("EAGLE_VIRTUAL_API_KEY", "TRONGRID_API_KEY", "ETHERSCAN_API_KEY"):
+    for key in ("EAGLE_VIRTUAL_API_KEY", "TRONGRID_API_KEY", "HYPERSYNC_API_TOKEN"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     return home
@@ -194,72 +196,143 @@ def mock_ofac(network: respx.MockRouter, status: int = 200) -> None:
     )
 
 
-def token_row(
-    tx: str, when: datetime, sender: str, recipient: str, usdt: str, decimals: int = 18
-) -> dict[str, Any]:
-    """An Etherscan tokentx row for BSC USDT, shaped like those in etherscan/tokentx_usdt_page.json.
-    In this mock chain a block's number is its time in seconds, divided by ten."""
-    stamp = int(when.timestamp())
-    return {
-        "blockNumber": str(stamp // 10),
-        "timeStamp": str(stamp),
-        "hash": tx,
-        "from": sender,
-        "to": recipient,
-        "value": str(int(Decimal(usdt) * 10**decimals)),
-        "contractAddress": USDT_BSC,
-        "tokenName": "Tether USD",
-        "tokenSymbol": "USDT",
-        "tokenDecimal": str(decimals),
-    }
+@dataclass(frozen=True)
+class BscTransfer:
+    """A transfer on the mock BSC chain, where block N is made at second N (unix time)."""
+
+    tx: str
+    block: int
+    sender: str
+    recipient: str
+    value: int  # in 18-decimal units
+    index: int = 0
+    contract: str = USDT_BSC
 
 
-class EtherscanMock:
-    """Etherscan V2 answering like the recordings in tests/fixtures/etherscan."""
+def bsc_transfer(
+    tx: str, when: datetime, sender: str, recipient: str, usdt: str, index: int = 0
+) -> BscTransfer:
+    return BscTransfer(
+        tx,
+        int(when.timestamp()),
+        sender.lower(),
+        recipient.lower(),
+        int(Decimal(usdt) * 10**18),
+        index,
+    )
 
-    def __init__(self, network: respx.MockRouter) -> None:
-        self.histories: dict[str, list[dict[str, Any]]] = {}  # address -> tokentx rows
-        self.first_normal: dict[str, int] = {}  # address -> time of its first transaction
-        self.block_at: str | None = None  # getblocknobytime's answer; by default the mock block
-        self.free_plan = False
-        self.rate_limited = 0  # answer this many requests with Etherscan's rate-limit refusal
-        self.calls: list[dict[str, str]] = []
-        network.get(ETHERSCAN).mock(side_effect=self._answer)
 
-    @staticmethod
-    def _ok(result: Any) -> httpx.Response:
-        return httpx.Response(200, json={"status": "1", "message": "OK", "result": result})
+def _topic_addresses(words: list[str]) -> set[str]:
+    return {"0x" + word[-40:].lower() for word in words}
+
+
+class HyperSyncMock:
+    """Envio HyperSync over a mock BSC chain, answering in the shape of the recordings in
+    tests/fixtures/hypersync: one batch of `blocks` and `logs` (or `transactions`), hex block
+    timestamps, and `next_block` to go on from. Block N is made at second N unless `time_of`
+    says otherwise."""
+
+    def __init__(self, network: respx.MockRouter, head: int) -> None:
+        self.head = head
+        self.transfers: list[BscTransfer] = []
+        self.first_tx: dict[str, int] = {}  # address -> block of its first transaction
+        self.time_of: Callable[[int], int] = lambda block: block
+        self.scan_blocks: int | None = None  # blocks one answer covers at most, like the time limit
+        # Transfers one answer holds at most: the real service stops near 1,000 (V12).
+        self.logs_per_answer: int | None = None
+        self.rate_limited = 0  # answer this many queries with HTTP 429
+        self.queries: list[dict[str, Any]] = []
+        network.get(f"{HYPERSYNC}/height").mock(
+            side_effect=lambda _: httpx.Response(200, json={"height": self.head})
+        )
+        network.post(f"{HYPERSYNC}/query").mock(side_effect=self._answer)
+
+    def _page(self, batch: dict[str, Any], next_block: int) -> httpx.Response:
+        data = [batch] if any(batch.values()) else []
+        return httpx.Response(
+            200,
+            json={
+                "data": data,
+                "archive_height": self.head,
+                "next_block": next_block,
+                "total_execution_time": 1,
+                "rollback_guard": None,
+            },
+        )
+
+    def _block(self, number: int) -> dict[str, Any]:
+        return {"number": number, "timestamp": hex(self.time_of(number))}
 
     def _answer(self, request: httpx.Request) -> httpx.Response:
-        p = dict(request.url.params)
-        self.calls.append({k: v for k, v in p.items() if k != "apikey"})
-        if self.free_plan:
-            return httpx.Response(200, json=load("etherscan/error_free_plan_bsc.json"))
+        if request.headers.get("Authorization") != f"Bearer {HYPERSYNC_TOKEN}":
+            return httpx.Response(401, json=load("hypersync/error_no_token.json"))
         if self.rate_limited:
             self.rate_limited -= 1
-            refusal = "Max calls per sec rate limit reached (5/sec)"
-            return httpx.Response(200, json={"status": "0", "message": "NOTOK", "result": refusal})
-        if p["module"] == "block":
-            return self._ok(self.block_at or str(int(p["timestamp"]) // 10))
-        none = load("etherscan/tokentx_none.json")
-        if p["action"] == "txlist":
-            first = self.first_normal.get(p["address"])
+            return httpx.Response(429)
+        body = json.loads(request.content)
+        self.queries.append(body)
+        start = body["from_block"]
+        end = min(body.get("to_block", self.head + 1), self.head + 1)
+        if self.scan_blocks is not None:
+            end = min(end, start + self.scan_blocks)
+        if body.get("include_all_blocks"):
+            return self._page({"blocks": [self._block(n) for n in range(start, end)]}, end)
+        if "transactions" in body:
+            return self._first_activity(body, start, end)
+        return self._logs(body, start, end)
+
+    def _first_activity(self, body: dict[str, Any], start: int, end: int) -> httpx.Response:
+        address = body["transactions"][0]["from"][0]
+        hits = [t.block for t in self.transfers if address in (t.sender, t.recipient)]
+        if address in self.first_tx:
+            hits.append(self.first_tx[address])
+        hits = [block for block in hits if start <= block < end]
+        if not hits:
+            return self._page({}, end)
+        first = min(hits)
+        batch = {"logs": [{"block_number": first}], "blocks": [self._block(first)]}
+        return self._page(batch, first + 1)
+
+    def _logs(self, body: dict[str, Any], start: int, end: int) -> httpx.Response:
+        def selected(t: BscTransfer, selection: dict[str, Any]) -> bool:
+            topics = selection["topics"] + [[], []]
             return (
-                self._ok([{"timeStamp": str(first)}]) if first else httpx.Response(200, json=none)
+                t.contract in selection.get("address", [t.contract])
+                and (not topics[1] or t.sender in _topic_addresses(topics[1]))
+                and (not topics[2] or t.recipient in _topic_addresses(topics[2]))
             )
-        rows = self.histories.get(p["address"], [])
-        if "contractaddress" in p:
-            rows = [r for r in rows if r["contractAddress"] == p["contractaddress"].lower()]
-        start = int(p.get("startblock", 0))
-        end = int(p["endblock"]) if "endblock" in p else None
-        rows = [
-            r
-            for r in rows
-            if start <= int(r["blockNumber"]) and (end is None or int(r["blockNumber"]) <= end)
-        ]
-        rows = sorted(rows, key=lambda r: int(r["blockNumber"]), reverse=p.get("sort") != "asc")
-        page, offset = int(p.get("page", 1)), int(p.get("offset", 10_000))
-        if page * offset > 10_000:
-            return httpx.Response(200, json=load("etherscan/error_window.json"))
-        chunk = rows[(page - 1) * offset : page * offset]
-        return self._ok(chunk) if chunk else httpx.Response(200, json=none)
+
+        hits = sorted(
+            (
+                t
+                for t in self.transfers
+                if start <= t.block < end and any(selected(t, s) for s in body["logs"])
+            ),
+            key=lambda t: (t.block, t.index),
+        )
+        caps = [c for c in (body.get("max_num_logs"), self.logs_per_answer) if c is not None]
+        cap = min(caps) if caps else None
+        logs: list[BscTransfer] = []
+        next_block = end
+        for t in hits:
+            if cap is not None and len(logs) >= cap and t.block != logs[-1].block:
+                next_block = logs[-1].block + 1  # whole blocks only, as HyperSync answers
+                break
+            logs.append(t)
+        return self._page(
+            {
+                "logs": [
+                    {
+                        "log_index": t.index,
+                        "transaction_hash": t.tx,
+                        "block_number": t.block,
+                        "data": f"0x{t.value:064x}",
+                        "topic1": "0x" + t.sender[2:].rjust(64, "0"),
+                        "topic2": "0x" + t.recipient[2:].rjust(64, "0"),
+                    }
+                    for t in logs
+                ],
+                "blocks": [self._block(n) for n in sorted({t.block for t in logs})],
+            },
+            next_block,
+        )

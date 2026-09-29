@@ -13,12 +13,13 @@ from conftest import (
     BLACKLISTED,
     CREDIT_LINE,
     FUNNEL,
+    HYPERSYNC_TOKEN,
     EagleVirtualMock,
-    EtherscanMock,
+    HyperSyncMock,
     TronGridMock,
+    bsc_transfer,
     load,
     mock_ofac,
-    token_row,
     transfer_row,
 )
 from typer.testing import CliRunner
@@ -58,7 +59,7 @@ def wide_console(monkeypatch: pytest.MonkeyPatch) -> None:
 class Services:
     tron: TronGridMock
     eagle: EagleVirtualMock
-    etherscan: EtherscanMock
+    hypersync: HyperSyncMock
 
 
 @pytest.fixture
@@ -69,7 +70,7 @@ def services(
     to wait out: the CLI runs on the real clock, so the TRON index head is "now"."""
     mock_ofac(network)
     monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "ev_live_test")
-    monkeypatch.setenv("ETHERSCAN_API_KEY", "TESTKEY1234567890ABCDEFGHIJKLMNOPQ")
+    monkeypatch.setenv("HYPERSYNC_API_TOKEN", HYPERSYNC_TOKEN)
     isolated.mkdir(exist_ok=True)
     (isolated / "config.toml").write_text("[eagle_virtual]\nrequests_per_second = 1000\n")
     now = utcnow()
@@ -83,13 +84,13 @@ def services(
         created=now - timedelta(days=700),
     )
     tron.move_histories(now)
-    etherscan = EtherscanMock(network)
-    etherscan.histories[CLEAN_BSC] = [
-        token_row("0xin", now - timedelta(days=10), LAZARUS_NEIGHBOUR, CLEAN_BSC, "1000"),
-        token_row("0xout", now - timedelta(days=5), CLEAN_BSC, LAZARUS_NEIGHBOUR, "100"),
+    hypersync = HyperSyncMock(network, int(now.timestamp()))
+    hypersync.transfers = [
+        bsc_transfer("0xin", now - timedelta(days=10), LAZARUS_NEIGHBOUR, CLEAN_BSC, "1000"),
+        bsc_transfer("0xout", now - timedelta(days=5), CLEAN_BSC, LAZARUS_NEIGHBOUR, "100"),
     ]
-    etherscan.first_normal[CLEAN_BSC] = int((now - timedelta(days=700)).timestamp())
-    return Services(tron, EagleVirtualMock(network), etherscan)
+    hypersync.first_tx[CLEAN_BSC] = int((now - timedelta(days=700)).timestamp())
+    return Services(tron, EagleVirtualMock(network), hypersync)
 
 
 @pytest.fixture
@@ -190,21 +191,23 @@ def test_clean_bsc_address_is_no_hits(synced: Services) -> None:
     assert "2 transfers with 1 counterparty; none flagged" in result.output
 
 
-def test_bsc_without_an_etherscan_key_is_incomplete(
+def test_bsc_without_a_hypersync_token_is_incomplete(
     synced: Services, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("ETHERSCAN_API_KEY")
+    monkeypatch.delenv("HYPERSYNC_API_TOKEN")
     result = runner.invoke(app, ["check", CLEAN_BSC])
     assert result.exit_code == 4, result.output
-    assert "ETHERSCAN_API_KEY is not set" in result.output
+    assert "HYPERSYNC_API_TOKEN is not set" in result.output
 
 
-def test_bsc_with_a_free_plan_key_is_incomplete_and_says_why(synced: Services) -> None:
-    synced.etherscan.free_plan = True
+def test_bsc_with_a_refused_token_is_incomplete_and_says_why(
+    synced: Services, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HYPERSYNC_API_TOKEN", "hs-not-a-real-token")
     result = runner.invoke(app, ["check", CLEAN_BSC])
     assert result.exit_code == 4, result.output
-    assert "Free API access is not supported for this chain" in result.output
-    assert "TESTKEY1234567890" not in result.output
+    assert "HyperSync answered HTTP 401: Your token is malformed" in result.output
+    assert "hs-not-a-real-token" not in result.output
 
 
 def test_known_frozen_sender_gives_review_end_to_end(synced: Services) -> None:
@@ -363,7 +366,7 @@ def test_status_shows_every_source_and_never_a_key(synced: Services) -> None:
     assert "skipped: not applicable" in line_for(result.output, "BSC USDT")
     assert "ok: transfers over 180 days" in line_for(result.output, "Exposure (TRON)")
     assert "ok: transfers over 180 days" in line_for(result.output, "Exposure (BSC)")
-    assert line_for(result.output, "ETHERSCAN_API_KEY").split()[-1] == "set"
+    assert line_for(result.output, "HYPERSYNC_API_TOKEN").split()[-1] == "set"
 
 
 def test_status_explains_a_broken_config(isolated: Path) -> None:

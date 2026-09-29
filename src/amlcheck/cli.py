@@ -289,7 +289,7 @@ def status() -> None:
     keys = {
         "EAGLE_VIRTUAL_API_KEY": secrets.eagle_virtual_api_key,
         "TRONGRID_API_KEY": secrets.trongrid_api_key,
-        "ETHERSCAN_API_KEY": secrets.etherscan_api_key,
+        "HYPERSYNC_API_TOKEN": secrets.hypersync_api_token,
     }
     for name, key in keys.items():
         _row(name, "set" if key else "missing", "green" if key else "yellow")
