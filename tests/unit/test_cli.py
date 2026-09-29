@@ -326,9 +326,10 @@ def test_audit_list_stays_readable_in_a_narrow_terminal(
     synced: Services, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No address or check ID may be split across lines: people copy them."""
-    assert runner.invoke(app, ["check", CHEIL_TRON, "--note", "new client"]).exit_code == 5
+    args = ["check", CHEIL_TRON, "--note", "new client", "--client", "ACME"]
+    assert runner.invoke(app, args).exit_code == 5
     wide = runner.invoke(app, ["audit", "list"]).output
-    header = ["Time", "Verdict", "Chain", "Address", "Check", "Amount", "Note"]
+    header = ["Time", "Verdict", "Chain", "Address", "Check", "Client", "Amount", "Note"]
     assert wide.splitlines()[0].split() == header
     monkeypatch.setattr(cli.out, "width", 60)
     lines = runner.invoke(app, ["audit", "list"]).output.splitlines()
@@ -336,7 +337,27 @@ def test_audit_list_stays_readable_in_a_narrow_terminal(
     assert lines[1] == CHEIL_TRON
     assert lines[2].startswith("check ")
     assert len(lines[2].removeprefix("check ")) == 36
-    assert lines[3] == "note: new client"
+    assert lines[3] == "client ACME  note: new client"
+
+
+def test_a_check_can_name_its_client(synced: Services) -> None:
+    result = runner.invoke(app, ["check", CHEIL_TRON, "--client", "  ACME Ltd ", "--json"])
+    assert result.exit_code == 5, result.output
+    assert json.loads(result.output)["client"] == "ACME Ltd"
+    assert runner.invoke(app, ["check", NEVER_USED]).exit_code == 3
+    listed = runner.invoke(app, ["audit", "list", "--client", "acme ltd"]).output
+    assert CHEIL_TRON in listed
+    assert NEVER_USED not in listed
+    assert "No checks match." in runner.invoke(app, ["audit", "list", "--client", "Other"]).output
+    shown = runner.invoke(app, ["check", CHEIL_TRON, "--client", "ACME Ltd"]).output
+    assert line_for(shown, "Client").split(maxsplit=1)[1] == "ACME Ltd"
+    assert runner.invoke(app, ["audit", "verify"]).exit_code == 0
+
+
+def test_a_client_name_that_is_too_long_is_refused(synced: Services) -> None:
+    result = runner.invoke(app, ["check", CHEIL_TRON, "--client", "x" * 201])
+    assert result.exit_code == 1
+    assert "--client is longer than 200 characters" in result.output
 
 
 @pytest.mark.parametrize("args", [["--verdict", "maybe"], ["--from", "2026-13-01"]])

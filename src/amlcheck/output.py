@@ -64,6 +64,8 @@ def render(result: CheckResult, console: Console) -> None:
         Text.assemble(("Check     ", "bold"), f"{result.check_id}  {local(result.created_at)}"),
         soft_wrap=True,
     )
+    if result.client:
+        console.print(Text.assemble(("Client    ", "bold"), result.client), soft_wrap=True)
     console.print(
         Text.assemble(
             ("VERDICT   ", "bold"), (f" {result.verdict} ", VERDICT_STYLE[result.verdict])
@@ -129,6 +131,7 @@ def to_json(result: CheckResult) -> dict[str, Any]:
         ],
         "amount_hint": result.amount_hint,
         "operator_note": result.operator_note,
+        "client": result.client,
         "tool_version": result.tool_version,
         "config_hash": result.config_hash,
         "record_hash": result.record_hash,

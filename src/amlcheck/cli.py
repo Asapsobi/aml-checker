@@ -56,6 +56,7 @@ out = Console()
 err = Console(stderr=True)
 
 EXIT_FAILED = 1
+MAX_CLIENT = 200  # characters in a client name
 EXIT_FOR = {Verdict.NO_HITS: 0, Verdict.REVIEW: 3, Verdict.INCOMPLETE: 4, Verdict.BLOCK: 5}
 
 
@@ -130,6 +131,14 @@ def _amount(text: str | None) -> str | None:
     return format(value, "f")
 
 
+def _client(text: str | None) -> str | None:
+    """A client name as typed, without surrounding spaces; None when empty (Q13)."""
+    name = (text or "").strip()
+    if len(name) > MAX_CLIENT:
+        _fail(f"--client is longer than {MAX_CLIENT} characters")
+    return name or None
+
+
 async def _screen(
     address: Address,
     conn: sqlite3.Connection,
@@ -137,13 +146,14 @@ async def _screen(
     secrets: Secrets,
     amount: str | None,
     note: str | None,
+    client: str | None,
 ) -> CheckResult:
     async with new_client(config.network.timeout_seconds) as http:
         sources = adapters.build(
             address.chain, conn=conn, http=http, config=config, secrets=secrets
         )
         return await engine.screen(
-            address, sources, conn=conn, config=config, amount=amount, note=note
+            address, sources, conn=conn, config=config, amount=amount, note=note, client=client
         )
 
 
@@ -157,6 +167,9 @@ def check(
         str | None, typer.Option(help="Planned amount in USDT, kept in the audit log.")
     ] = None,
     note: Annotated[str | None, typer.Option(help="Operator note, kept in the audit log.")] = None,
+    client: Annotated[
+        str | None, typer.Option(help="Client the check is for; exports can filter by it.")
+    ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print the JSON result.")] = False,
 ) -> None:
     """Screen one address. The chain is detected from the address format.
@@ -169,10 +182,11 @@ def check(
     except AddressError as e:
         _fail(str(e))
     amount_hint = _amount(amount)
+    client_name = _client(client)
     config = _config()
     secrets = load_secrets()
     with closing(_database()) as conn:
-        result = asyncio.run(_screen(parsed, conn, config, secrets, amount_hint, note))
+        result = asyncio.run(_screen(parsed, conn, config, secrets, amount_hint, note, client_name))
     if json_output:
         typer.echo(json.dumps(to_json(result), indent=2, ensure_ascii=False))
     else:
@@ -316,6 +330,7 @@ def audit_list(
     verdict: Annotated[
         str | None, typer.Option(help="BLOCK, REVIEW, INCOMPLETE or NO_HITS.")
     ] = None,
+    client: Annotated[str | None, typer.Option(help="Only checks for this client.")] = None,
 ) -> None:
     """Browse past checks, newest first."""
     filters = {
@@ -323,6 +338,7 @@ def audit_list(
         "end": iso(_day(end, "--to") + timedelta(days=1)) if end else None,
         "address": None,
         "verdict": None,
+        "client": _client(client),
     }
     if address:
         try:
@@ -335,26 +351,29 @@ def audit_list(
         filters["verdict"] = verdict.upper()
     with closing(_database()) as conn:
         rows = conn.execute(
-            "SELECT created_at, verdict, chain, address_norm, check_id, amount_hint, operator_note"
+            "SELECT created_at, verdict, chain, address_norm, check_id, amount_hint,"
+            " operator_note, client"
             " FROM checks WHERE (:start IS NULL OR created_at >= :start)"
             " AND (:end IS NULL OR created_at < :end)"
             " AND (:address IS NULL OR address_norm = :address)"
-            " AND (:verdict IS NULL OR verdict = :verdict) ORDER BY seq DESC",
+            " AND (:verdict IS NULL OR verdict = :verdict)"
+            " AND (:client IS NULL OR client = :client COLLATE NOCASE) ORDER BY seq DESC",
             filters,
         ).fetchall()
     if not rows:
         out.print("No checks match.")
         return
     table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
-    for column in ("Time", "Verdict", "Chain", "Address", "Check", "Amount", "Note"):
+    for column in ("Time", "Verdict", "Chain", "Address", "Check", "Client", "Amount", "Note"):
         table.add_column(column, overflow="fold")
-    for created, found, chain, addr, check_id, amount, note in rows:
+    for created, found, chain, addr, check_id, amount, note, client_name in rows:
         table.add_row(
             local(datetime.fromisoformat(created)),
             Text(found, VERDICT_STYLE[Verdict(found)]),
             chain.upper(),
             addr,
             check_id,
+            client_name or "",
             amount or "",
             note or "",
         )
@@ -363,13 +382,14 @@ def audit_list(
         out.print(table)
         return
     # Too narrow for the table: one block per check, so no address or ID is broken across lines.
-    for created, found, chain, addr, check_id, amount, note in rows:
+    for created, found, chain, addr, check_id, amount, note, client_name in rows:
         when = local(datetime.fromisoformat(created))
         verdict_label = (f" {found} ", VERDICT_STYLE[Verdict(found)])
         out.print(Text.assemble(verdict_label, f"  {when}  {chain.upper()}"), soft_wrap=True)
         out.print(Text(addr), soft_wrap=True)
         out.print(Text(f"check {check_id}"), soft_wrap=True)
-        extras = [f"amount {amount}"] if amount else []
+        extras = [f"client {client_name}"] if client_name else []
+        extras += [f"amount {amount}"] if amount else []
         extras += [f"note: {note}"] if note else []
         if extras:
             out.print(Text("  ".join(extras)), soft_wrap=True)

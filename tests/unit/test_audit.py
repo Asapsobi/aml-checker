@@ -1,6 +1,7 @@
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import closing
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -61,6 +62,58 @@ def test_records_chain_from_genesis(conn: sqlite3.Connection, make_result: MakeR
     report = audit.verify(conn)
     assert report.intact
     assert (report.records, report.head) == (2, second)
+
+
+def test_a_client_is_hashed_only_when_set(
+    conn: sqlite3.Connection, make_result: MakeResult
+) -> None:
+    without = make_result()
+    assert "client" not in audit.to_rows(without)[0]
+    audit.append(conn, without)
+    audit.append(conn, replace(make_result(), client="ACME Ltd"))
+    assert audit.verify(conn).intact
+    conn.execute("UPDATE checks SET client = 'Other' WHERE check_id = 'check-1'")
+    assert audit.verify(conn).broken_check_id == "check-1"
+    conn.execute("UPDATE checks SET client = 'ACME Ltd' WHERE check_id = 'check-1'")
+    conn.execute("UPDATE checks SET client = 'ACME Ltd' WHERE check_id = 'check-0'")
+    assert audit.verify(conn).broken_check_id == "check-0"
+
+
+def test_records_written_before_the_client_column_still_verify(
+    tmp_path: Path, make_result: MakeResult
+) -> None:
+    """A log from before Phase 3 (schema v2) keeps verifying once migrated."""
+    with closing(sqlite3.connect(tmp_path / "old.db")) as old:
+        db.migrate(old, db.migrations()[:2])
+        result = make_result()
+        check, sources, findings = audit.to_rows(result)
+        record = audit.record_hash(audit.GENESIS, check, sources, findings)
+        old.execute(
+            "INSERT INTO checks (check_id, created_at, address_norm, chain, verdict, amount_hint,"
+            " operator_note, tool_version, config_hash, prev_hash, record_hash)"
+            " VALUES (:check_id, :created_at, :address_norm, :chain, :verdict, :amount_hint,"
+            " :operator_note, :tool_version, :config_hash, :prev_hash, :record_hash)",
+            {**check, "prev_hash": audit.GENESIS, "record_hash": record},
+        )
+        old.executemany(
+            "INSERT INTO check_sources (check_id, source, required, status, as_of, summary,"
+            " evidence_meta_json) VALUES (:check_id, :source, :required, :status, :as_of,"
+            " :summary, :evidence_meta_json)",
+            [{**s, "check_id": result.check_id} for s in sources],
+        )
+        old.executemany(
+            "INSERT INTO check_findings (check_id, rule_id, severity, source, summary,"
+            " evidence_json, observed_at) VALUES (:check_id, :rule_id, :severity, :source,"
+            " :summary, :evidence_json, :observed_at)",
+            [{**f, "check_id": result.check_id} for f in findings],
+        )
+        old.commit()
+    with closing(db.connect(tmp_path / "old.db")) as upgraded:
+        assert db.schema_version(upgraded) == len(db.migrations())
+        audit.append(upgraded, replace(make_result(), client="ACME Ltd"))
+        assert audit.verify(upgraded) == audit.Verification(
+            2, upgraded.execute("SELECT record_hash FROM checks WHERE seq = 2").fetchone()[0]
+        )
 
 
 def test_empty_log_verifies() -> None:

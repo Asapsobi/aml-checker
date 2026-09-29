@@ -86,3 +86,4 @@ class CheckResult:
     amount_hint: str | None = None
     operator_note: str | None = None
     record_hash: str | None = None
+    client: str | None = None  # who the check was made for (Q13)

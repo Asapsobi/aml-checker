@@ -1,9 +1,12 @@
 """The audit log: append-only and hash-chained (PRD §9 "Audit integrity").
 
 record_hash = sha256(prev_hash + canonical_json(check + sources + findings)). Nothing in the code
-updates or deletes a record. `verify` recomputes every hash in order and names the first record
-that no longer matches, which catches a changed, removed or inserted record. Cutting records off
-the end cannot be seen from inside the file, so `verify` also reports the latest hash to keep.
+updates or deletes a record. A check's client (Phase 3, Q13) is hashed only when it is set, so the
+records written before it existed hash exactly as they did.
+
+`verify` recomputes every hash in order and names the first record that no longer matches, which
+catches a changed, removed or inserted record. Cutting records off the end cannot be seen from
+inside the file, so `verify` also reports the latest hash to keep.
 """
 
 import hashlib
@@ -62,6 +65,8 @@ def to_rows(result: CheckResult) -> tuple[Row, list[Row], list[Row]]:
         "tool_version": result.tool_version,
         "config_hash": result.config_hash,
     }
+    if result.client is not None:
+        check["client"] = result.client
     sources = [
         {
             "source": s.source,
@@ -97,10 +102,10 @@ def append(conn: sqlite3.Connection, result: CheckResult) -> str:
         new_hash = record_hash(prev_hash, check, sources, findings)
         conn.execute(
             "INSERT INTO checks (check_id, created_at, address_norm, chain, verdict, amount_hint,"
-            " operator_note, tool_version, config_hash, prev_hash, record_hash)"
+            " operator_note, tool_version, config_hash, client, prev_hash, record_hash)"
             " VALUES (:check_id, :created_at, :address_norm, :chain, :verdict, :amount_hint,"
-            " :operator_note, :tool_version, :config_hash, :prev_hash, :record_hash)",
-            {**check, "prev_hash": prev_hash, "record_hash": new_hash},
+            " :operator_note, :tool_version, :config_hash, :client, :prev_hash, :record_hash)",
+            {**check, "client": result.client, "prev_hash": prev_hash, "record_hash": new_hash},
         )
         conn.executemany(
             "INSERT INTO check_sources (check_id, source, required, status, as_of, summary,"
@@ -137,12 +142,14 @@ class Verification:
 def verify(conn: sqlite3.Connection) -> Verification:
     expected_prev = GENESIS
     count = 0
-    for seq, *values, prev_hash, stored_hash in conn.execute(
+    for seq, *values, client, prev_hash, stored_hash in conn.execute(
         "SELECT seq, check_id, created_at, address_norm, chain, verdict, amount_hint,"
-        " operator_note, tool_version, config_hash, prev_hash, record_hash"
+        " operator_note, tool_version, config_hash, client, prev_hash, record_hash"
         " FROM checks ORDER BY seq"
     ):
         check = dict(zip(CHECK_FIELDS, values, strict=True))
+        if client is not None:
+            check["client"] = client
         check_id = check["check_id"]
         if prev_hash != expected_prev:
             reason = "its link to the record before it is broken: a record was removed or inserted"
