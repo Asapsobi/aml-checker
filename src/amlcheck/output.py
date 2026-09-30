@@ -1,5 +1,6 @@
 """A check result for people (PRD §10.2) and as the stable JSON contract (§10.3)."""
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -8,8 +9,10 @@ from rich.table import Table
 from rich.text import Text
 
 from amlcheck import graph
+from amlcheck.core.audit import Stored
 from amlcheck.core.clock import iso
 from amlcheck.core.models import CheckResult, Finding, Severity, SourceStatus, Verdict
+from amlcheck.export import credits, source_label
 
 VERDICT_STYLE = {
     Verdict.BLOCK: "bold white on red",
@@ -160,4 +163,54 @@ def to_json(result: CheckResult) -> dict[str, Any]:
         "config_hash": result.config_hash,
         "record_hash": result.record_hash,
         "attribution": attributions(result),
+    }
+
+
+def from_record(record: Stored) -> dict[str, Any]:
+    """The JSON contract of a stored check: what to_json gave when the check was made. It is built
+    from the audit record, so it shows exactly what the record's hash covers."""
+    check = record.check
+    sources = []
+    for s in record.sources:
+        meta = json.loads(s["evidence_meta_json"] or "{}")
+        sources.append(
+            {
+                "source": s["source"],
+                "label": source_label(s["source"], meta),
+                "required": bool(s["required"]),
+                "status": s["status"],
+                "as_of": s["as_of"],
+                "summary": s["summary"],
+                "meta": meta,
+            }
+        )
+    findings = []
+    for f in record.findings:
+        evidence = json.loads(f["evidence_json"])
+        findings.append(
+            {
+                "rule_id": f["rule_id"],
+                "severity": f["severity"],
+                "priority": evidence.get("priority"),
+                "source": f["source"],
+                "summary": f["summary"],
+                "evidence": evidence,
+                "observed_at": f["observed_at"],
+            }
+        )
+    return {
+        "check_id": check["check_id"],
+        "created_at": check["created_at"],
+        "address": check["address_norm"],
+        "chain": check["chain"],
+        "verdict": check["verdict"],
+        "sources": sources,
+        "findings": findings,
+        "amount_hint": check["amount_hint"],
+        "operator_note": check["operator_note"],
+        "client": check.get("client"),
+        "tool_version": check["tool_version"],
+        "config_hash": check["config_hash"],
+        "record_hash": record.record_hash,
+        "attribution": credits([record]),
     }

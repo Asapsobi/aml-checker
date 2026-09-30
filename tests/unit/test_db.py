@@ -18,6 +18,8 @@ PRD_TABLES = {
     "check_findings",
     "watchlist",
 }
+# Beyond PRD §9: the local API's idempotency keys (Phase 5).
+LATER_TABLES = {"api_requests"}
 
 
 def tables(conn: sqlite3.Connection) -> set[str]:
@@ -26,7 +28,7 @@ def tables(conn: sqlite3.Connection) -> set[str]:
 
 def test_new_database_gets_the_prd_schema(tmp_path: Path) -> None:
     with closing(db.connect(tmp_path / "new" / "amlcheck.db")) as conn:
-        assert tables(conn) == PRD_TABLES
+        assert tables(conn) == PRD_TABLES | LATER_TABLES
         assert db.schema_version(conn) == len(db.migrations())
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1

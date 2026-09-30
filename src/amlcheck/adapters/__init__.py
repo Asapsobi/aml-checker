@@ -66,12 +66,13 @@ def build(
     cache = ResponseCache(conn, config.cache.target_ttl_seconds, now)
     eagle = EagleVirtualAdapter(
         http,
-        secrets.eagle_virtual_api_key,
+        secrets.eagle_virtual_keys(),
         config.eagle_virtual,
         cache,
         max_retry_after=config.network.max_retry_after_seconds,
         sleep=sleep,
         limiter=eagle_limiter,
+        now=now,
     )
     sources: list[SourceAdapter] = [
         OfacAdapter(conn, timedelta(hours=config.freshness.sanctions_max_age_hours), now),

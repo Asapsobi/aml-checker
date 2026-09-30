@@ -1,14 +1,18 @@
+import json
+from contextlib import closing
 from pathlib import Path
 
 import pytest
 from conftest import CLEAN_TRON, NEVER_USED, Services, runner
 from typer.testing import Result
 
-from amlcheck import cli, vendor
+from amlcheck import cli, output, vendor
 from amlcheck.cli import app
 from amlcheck.config import Config, Vendor
+from amlcheck.core import audit
 from amlcheck.core.address import parse
 from amlcheck.core.models import SourceStatus, Verdict
+from amlcheck.storage import db
 
 TRON = parse(CLEAN_TRON)
 
@@ -98,3 +102,15 @@ def test_a_wrong_adapter_stops_the_check(synced: Services, isolated: Path) -> No
     result = check(NEVER_USED)
     assert result.exit_code == 1
     assert "could not be loaded" in result.output
+
+
+def test_a_stored_check_is_rebuilt_as_it_was_answered(synced: Services, isolated: Path) -> None:
+    """A replay and GET /v1/checks/{id} rebuild a check from its audit record (D42), vendor label
+    included: the vendor's name is kept in its evidence."""
+    configured(isolated, "fake_vendors:Knows")
+    printed = json.loads(runner.invoke(app, ["check", NEVER_USED, "--json"]).output)
+    with closing(db.connect(isolated / "amlcheck.db")) as conn:
+        [stored] = audit.records(conn)
+    assert output.from_record(stored) == printed
+    [asked] = [s for s in printed["sources"] if s["source"] == "vendor"]
+    assert asked["label"] == "Vendor (Knows)"

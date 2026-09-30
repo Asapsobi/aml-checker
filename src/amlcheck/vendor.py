@@ -49,6 +49,12 @@ class VendorError(Exception):
     pass
 
 
+def label(name: str | None) -> str:
+    """The vendor source's label. Its evidence keeps the vendor's name, so a stored check can be
+    labelled as it was shown."""
+    return f"Vendor ({name})" if name else "Vendor"
+
+
 def load(spec: str) -> Vendor | None:
     """The vendor that `[vendor] adapter` names as "module:Class", or None when it names none."""
     if not spec:
@@ -70,17 +76,26 @@ class VendorSource:
 
     def __init__(self, vendor: Vendor) -> None:
         self._vendor = vendor
-        self.label = f"Vendor ({vendor.name})"
+        self.label = label(vendor.name)
 
     async def check(self, address: Address) -> SourceResult:
+        named = {"vendor": self._vendor.name}
         try:
             found = await self._vendor.attribute(address)
         except Exception as e:  # anything a vendor's code raises is its failure, not the check's
             summary = f"the vendor failed ({type(e).__name__}: {e}); the verdict stands without it"
-            return SourceResult(SOURCE, self.label, False, SourceStatus.error, summary)
+            return SourceResult(
+                SOURCE, self.label, False, SourceStatus.error, summary, evidence_meta=named
+            )
         if found is None:
             return SourceResult(
-                SOURCE, self.label, False, SourceStatus.ok, "nothing known", as_of=utcnow()
+                SOURCE,
+                self.label,
+                False,
+                SourceStatus.ok,
+                "nothing known",
+                as_of=utcnow(),
+                evidence_meta=named,
             )
         parts = [found.entity or "an unnamed entity"]
         if found.category:
@@ -94,7 +109,7 @@ class VendorSource:
             SourceStatus.ok,
             " ".join(parts),
             as_of=utcnow(),
-            evidence_meta=asdict(found),
+            evidence_meta=named | asdict(found),
         )
 
     async def health(self) -> SourceHealth:

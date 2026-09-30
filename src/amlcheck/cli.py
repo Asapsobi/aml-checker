@@ -471,13 +471,23 @@ def status() -> None:
     _row("Config", str(path) if path.is_file() else f"{path} (not found, using defaults)")
     _row("Config hash", config.hash()[:16])
     _row("Database", f"{db_path()} (schema v{version})")
+    eagle_keys = len(secrets.eagle_virtual_keys())
     keys = {
         "EAGLE_VIRTUAL_API_KEY": secrets.eagle_virtual_api_key,
         "TRONGRID_API_KEY": secrets.trongrid_api_key,
         "HYPERSYNC_API_TOKEN": secrets.hypersync_api_token,
     }
     for name, key in keys.items():
-        _row(name, "set" if key else "missing", "green" if key else "yellow")
+        text = "set" if key else "missing"
+        if name == "EAGLE_VIRTUAL_API_KEY" and eagle_keys > 1:
+            text = f"set ({eagle_keys} keys, taking turns)"
+        _row(name, text, "green" if key else "yellow")
+    api_token = secrets.amlcheck_api_token
+    _row(
+        "AMLCHECK_API_TOKEN",
+        "set" if api_token else "missing (needed only for `amlcheck api`)",
+        "green" if api_token else "dim",
+    )
     for h in health:
         _row(h.label, f"{h.status.value}: {h.detail}", STATUS_STYLE[h.status])
         for warning in h.warnings:
@@ -826,6 +836,32 @@ def web(
     if open_browser:
         threading.Timer(1.0, webbrowser.open, [url]).start()
     serve(config, secrets, db_path(), port)
+
+
+@app.command()
+def api(
+    port: Annotated[int, typer.Option(help="Port on 127.0.0.1.", min=1024, max=65535)] = 8766,
+) -> None:
+    """Serve the HTTP API for a system on this computer, such as a corridor's (docs/api.md).
+
+    POST /v1/check takes {"address": ...} and answers with the JSON of `check --json`. It is served
+    on 127.0.0.1 only and needs AMLCHECK_API_TOKEN, a random value of at least 32 characters, as
+    `Authorization: Bearer <token>`. Stop it with Ctrl+C.
+    """
+    from amlcheck.api import MIN_TOKEN, serve  # the web stack loads only for this command
+
+    config = _config_checked()
+    secrets = load_secrets()
+    token = secrets.amlcheck_api_token.get_secret_value() if secrets.amlcheck_api_token else ""
+    if len(token) < MIN_TOKEN:
+        _fail(
+            f"AMLCHECK_API_TOKEN must be set to a random value of at least {MIN_TOKEN} characters,"
+            f" in {home_dir() / '.env'} or the environment. Make one with:\n"
+            "  python3 -c 'import secrets; print(secrets.token_urlsafe(32))'\n"
+            "and give the same value to the system that calls the API."
+        )
+    out.print(f"amlcheck API at http://127.0.0.1:{port}/v1/  (Ctrl+C stops it)", soft_wrap=True)
+    serve(config, secrets, db_path(), port, token)
 
 
 @labels_app.command("import")

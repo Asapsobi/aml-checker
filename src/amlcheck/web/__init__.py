@@ -39,7 +39,7 @@ from amlcheck.core.address import AddressError, parse
 from amlcheck.core.clock import from_iso, iso, utcnow
 from amlcheck.core.models import Address, Chain, CheckResult, Verdict
 from amlcheck.explorer import explorer
-from amlcheck.export import SOURCE_LABELS, credits
+from amlcheck.export import credits, source_label
 from amlcheck.inputs import amount_hint, client_name
 from amlcheck.net import RateLimiter, new_client
 from amlcheck.output import MEANING, attributions
@@ -114,7 +114,7 @@ def shown(record: audit.Stored) -> Shown:
         sources.append(
             {
                 **s,
-                "label": SOURCE_LABELS.get(s["source"]) or s["source"],
+                "label": source_label(s["source"], meta),
                 "as_of": from_iso(s["as_of"]) if s["as_of"] else None,
                 "url": url if isinstance(url, str) and url.startswith("https://") else None,
             }

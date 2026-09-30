@@ -196,9 +196,19 @@ class Secrets(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", env_ignore_empty=True)
 
+    # One key, or a paid plan's keys separated by commas, which take turns (Q19).
     eagle_virtual_api_key: SecretStr | None = None
     trongrid_api_key: SecretStr | None = None
     hypersync_api_token: SecretStr | None = None
+    # The token a caller of `amlcheck api` sends as `Authorization: Bearer ...` (docs/api.md).
+    amlcheck_api_token: SecretStr | None = None
+
+    def eagle_virtual_keys(self) -> tuple[SecretStr, ...]:
+        """The Eagle Virtual keys in the order given, each once."""
+        if self.eagle_virtual_api_key is None:
+            return ()
+        parts = (p.strip() for p in self.eagle_virtual_api_key.get_secret_value().split(","))
+        return tuple(SecretStr(p) for p in dict.fromkeys(parts) if p)
 
 
 def load_secrets() -> Secrets:

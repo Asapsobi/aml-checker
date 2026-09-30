@@ -1,6 +1,6 @@
 # Phase 0 verification report
 
-> **Checked:** 2026-09-28, with V11–V14 added on 2026-09-29 and V15 on 2026-09-30 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
+> **Checked:** 2026-09-28, with V11–V14 added on 2026-09-29 and V15–V16 on 2026-09-30 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
 
 This report checks every item that PRD §6 marks **verify**, plus the provider facts that §2 and §11
 rely on. Each item says where it was checked, what was found and what it changes in the build.
@@ -457,6 +457,58 @@ None of these gives a complete 180-day history without an account:
 - The 2-hop reads skip the first-activity lookup.
 - Graph labels are longer.
 
+## V16. Checked before building Phase 5
+
+**Checked** on 2026-09-30.
+
+**Eagle Virtual, for key rotation.** Its spec, version 1.3.0, says:
+
+- "The Business plan has 5 keys, each with 25,000 calls a day and 10 a second."
+- `GET /v1/usage`: "On the Business and Enterprise plans the counter is the key's own. On the Free
+  plan it is the account's", shared with its MCP server. So several keys help only on a paid plan.
+- 429 is "Over your plan's limit. Retry-After says how long to wait." The body is not documented.
+- Answers to a Business or Enterprise key carry no `x-ev-credit-line`: those plans owe no credit
+  line. `/v1/usage` says so in `credit_line_required`.
+
+The pricing page adds that a key whose checks for the day are used up gets no answers until
+midnight UTC, "and it says so". The terms say credentials may not be shared "except as expressly
+permitted by your plan or written agreement". The licence says its indexing permission does not
+extend to getting around rate limits.
+
+Not checked live: the answer of a key whose day is used up, which would spend the day's 1,000
+calls. Rotation is tested with mocks built only from the words above (D40).
+
+**Idempotency.** The IETF draft "The Idempotency-Key HTTP Header Field" is at revision 07
+(October 2025). It is not an RFC yet, and this revision expired on 2026-04-18. Its rules:
+
+- The key is a structured-field String, such as `"8e03978e-…"`. A UUID is recommended.
+- A retry after the first request completed gets that request's result.
+- A retry while it is still running gets 409.
+- Reusing a key with a different payload gets 422.
+- The server publishes the key's format and when keys expire.
+
+**Packaging, with uv 0.11.16:**
+
+- `uv build` makes a wheel that holds the migrations, templates and static files.
+- `uv tool install` works from that wheel, and from `git+https://github.com/Asapsobi/aml-checker`,
+  which built main at `f375af9`. The installed `amlcheck` created a new database at schema v4 and
+  refused to serve the API without a token.
+- pipx 1.17.8 (run through uvx, with Python 3.13.15) installs the same wheel.
+
+**The API, live** on the Mac with the owner's keys, in a scratch amlcheck home:
+
+- `scripts/corridor_mock.py` screened `TA3941uF…86mz` (on the OFAC list): BLOCK in 2.8 seconds.
+- It screened `0xd5efbbd7…1e36`: REVIEW in 8.9 seconds (R-EXP-01, R-EXP-02, R-HEU-02).
+- The same request again, with the address in capitals and the amount as a number, was a replay of
+  the same check in 0.01 seconds. The same key with another amount was refused with 422.
+- The audit log verified, with no record for the replay. A request without the token got 401.
+
+**What this changes:**
+
+- A paid plan's keys take turns, and only the first key may be on the Free plan (D40).
+- The API follows the draft (D41).
+- amlcheck installs as a tool from GitHub (D44).
+
 ## Decisions
 
 These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0,
@@ -502,6 +554,13 @@ D6–D12 in Phase 1, D13–D23 in Phase 2, D24–D32 in Phase 3 and D33–D38 in
 | D36 | The 2-hop walk runs for `investigate`, for the web form's 2-hop box, and for checks of at least 10,000 USDT (Q15) | Everyday checks stay fast, and large amounts get the deeper look |
 | D37 | A vendor is a class named in `[vendor] adapter`, asked only for REVIEW results or amounts of at least `min_amount_usdt`. It adds attribution, is not required, and never changes the verdict (Q14, PRD Q3) | No vendor is paid for now. A paid one can be added without changing amlcheck |
 | D38 | The graph is SVG drawn by amlcheck, in the status palette, with a mark for every state and a legend. Labels are 8 + 6 characters. The file version is light; the web version follows the page | No outside code, a strict CSP, colour never alone, and look-alike addresses told apart (V15) |
+| D39 | `amlcheck api` serves `POST /v1/check` on 127.0.0.1 only, for a caller on the same machine, with a Bearer token of at least 32 characters from `.env` (Q18). It serves only the host names 127.0.0.1 and localhost, and runs checks one at a time | PRD §10.4. Nothing is opened to the network, and the sources' rate limits hold as in a batch |
+| D40 | `EAGLE_VIRTUAL_API_KEY` can hold several keys, separated by commas. A key answering 429 rests for its Retry-After, and the next key is used. A key after the first is used only once `/v1/usage` says its plan is Business or Enterprise (Q19) | The Business plan counts each of its 5 keys separately. The Free plan counts per account, and Eagle Virtual's terms forbid getting around its limits |
+| D41 | Idempotency follows the IETF draft (V16). Keys are 8 to 128 characters of letters, digits and `. _ : -`. They never expire, and a request is compared as understood | A corridor can retry after a timeout without a second check or audit record |
+| D42 | A replay, and `GET /v1/checks/{id}`, are rebuilt from the audit record, and only after its hash still matches. The vendor's name is kept in its evidence, so a stored check keeps its labels | The audit log stays the one record, and a changed record is never served |
+| D43 | Errors are `application/problem+json` (RFC 9457). Every verdict, INCOMPLETE included, is a 200 | A failed source is part of the result, not an HTTP failure |
+| D44 | amlcheck installs with `uv tool install` or `pipx install` from the GitHub repo, pinned to a commit or tag, with systemd units for the API and the sync ([server.md](server.md)) (Q20) | Nothing to publish or host, and the server runs the version reviewed |
+| D45 | The version is 0.5.0 from Phase 5 on. It had stayed 0.1.0 since Phase 0 | Every audit record keeps `tool_version`, which should tell the Phase 5 code apart |
 
 ## Open questions
 
@@ -525,6 +584,10 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q14 | PRD §15 Q2 and Q3: which commercial attribution vendor, what budget, and above what amount must it be asked? | Phase 4 | Decided |
 | Q15 | When should the 2-hop walk run: on request, for large amounts, or on every check? | Phase 4 | Decided |
 | Q16 | What counts as 2-hop exposure (R-EXP-03's "threshold")? | Phase 4 | Decided |
+| Q17 | PRD §15 Q4: will screening results be shown to corridor clients? This affects Eagle Virtual's licence | Phase 5 | Decided |
+| Q18 | Where does the corridor system run, and so where must the API be reachable? | Phase 5 | Decided |
+| Q19 | Build Eagle Virtual key rotation without a Business plan? | Phase 5 | Decided |
+| Q20 | How is amlcheck packaged: pipx or uv tool, or a single binary? | Phase 5 | Decided |
 
 ### Answers
 
@@ -595,6 +658,18 @@ filter by it, ignoring case (D24).
 - **Q16:** a counterparty received at least 1,000 USDT from one sanctioned or frozen wallet within
   the lookback (D35). A share of the money traced through the middleman was not chosen, since
   money cannot really be traced dollar by dollar through a middleman.
+
+**Q17 to Q20, decided 2026-09-30.**
+
+- **Q17:** no. Results are for internal use only, so no written agreement with Eagle Virtual is
+  needed, and the API's reference says so.
+- **Q18:** on another server. amlcheck is installed on that server, and the corridor calls its API
+  on 127.0.0.1 (D39, [server.md](server.md)).
+- **Q19:** build it anyway. It is tested with mocks only, since there is no Business plan (D40).
+- **Q20:** `uv tool` or `pipx`, installed from the GitHub repo (D44).
+
+PRD §15 Q5 (how long to keep audit records) is still open. Until it is answered, nothing is
+deleted: the audit log and the API's idempotency keys are append-only.
 
 ## Phase 0 exit criteria
 
