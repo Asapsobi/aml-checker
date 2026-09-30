@@ -30,8 +30,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from amlcheck import __version__
-from amlcheck.adapters import bsc, eagle_virtual, exposure, ofac, tron
+from amlcheck import __version__, vendor
+from amlcheck.adapters import bsc, eagle_virtual, exposure, ofac, tron, two_hop
 from amlcheck.core.audit import Stored, Verification
 from amlcheck.core.clock import iso
 from amlcheck.inputs import safe_cell
@@ -41,7 +41,8 @@ SOURCE_LABELS = {
     eagle_virtual.SOURCE: eagle_virtual.LABEL,
     tron.SOURCE: tron.LABEL,
     "bsc_usdt": bsc.BscUsdtAdapter.label,
-    exposure.SOURCE: "Exposure (1-hop)",
+    exposure.SOURCE: exposure.ExposureAdapter.label,
+    two_hop.SOURCE: two_hop.LABEL,
 }
 SEVERITY_RANK = {"BLOCK": 0, "INCOMPLETE": 1, "REVIEW": 2}
 CSV_COLUMNS = (
@@ -96,9 +97,17 @@ def credits(records: Sequence[Stored]) -> list[str]:
     for record in records:
         for source in record.sources:
             if source["source"] == eagle_virtual.SOURCE and source["status"] != "error":
-                meta = json.loads(source["evidence_meta_json"] or "{}")
-                lines.add(meta.get("credit_line") or eagle_virtual.CREDIT_LINE)
+                line = eagle_virtual.credit_line(json.loads(source["evidence_meta_json"] or "{}"))
+                if line:
+                    lines.add(line)
     return sorted(lines)
+
+
+def source_label(source: str, meta: Any) -> str:
+    """How a stored source is named, as it was when the check was made."""
+    if source == vendor.SOURCE:
+        return vendor.label(meta.get("vendor") if isinstance(meta, dict) else None)
+    return SOURCE_LABELS.get(source) or source
 
 
 def _top(record: Stored) -> dict[str, Any] | None:
