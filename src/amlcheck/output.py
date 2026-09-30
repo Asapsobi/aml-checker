@@ -1,13 +1,13 @@
 """A check result for people (PRD §10.2) and as the stable JSON contract (§10.3)."""
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from amlcheck import graph
 from amlcheck.core.clock import iso
 from amlcheck.core.models import CheckResult, Finding, Severity, SourceStatus, Verdict
 
@@ -99,42 +99,23 @@ def render(result: CheckResult, console: Console) -> None:
         console.print(Text(line, "dim"), soft_wrap=True)
 
 
-WALK_STATE = {
-    "read": "read",
-    "flagged": "flagged itself (R-EXP-01)",
-    "hub": "a hub, not read",
-    "not_reached": "not reached in time",
-    "failed": "could not be read",
-}
-
-
-def _usdt(text: str) -> str:
-    return f"{Decimal(text):,.2f}"
-
-
 def render_walk(result: CheckResult, console: Console) -> None:
     """The 2-hop walk, when the check had one: each counterparty in scope, and the sanctioned or
     frozen wallets that paid it (R-EXP-03)."""
-    walk = next((s for s in result.sources if s.source == "exposure_2hop"), None)
-    graph = walk.evidence_meta.get("graph") if walk else None
-    if not graph:
+    network = graph.of(result)
+    if network is None:
         return
-    target = graph["nodes"][0]["id"]
     table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
     for column in ("Counterparty", "Received from it", "Sent to it", "Walk", "Paid by flagged"):
         table.add_column(column, overflow="fold")
-    for node in (n for n in graph["nodes"] if n["ring"] == 1):
-        edge = next(e for e in graph["edges"] if e["from"] == node["id"] and e["to"] == target)
-        paid = [e for e in graph["edges"] if e["to"] == node["id"]]
+    for row in graph.walk_rows(network):
+        paid = "; ".join(f"{sender} {amount}" for sender, amount in row["paid_by"])
         table.add_row(
-            node["id"],
-            _usdt(edge["received_usdt"]),
-            _usdt(edge["sent_usdt"]),
-            WALK_STATE.get(node["state"], node["state"]),
-            Text(
-                "; ".join(f"{e['from']} {_usdt(e['received_usdt'])}" for e in paid) or "-",
-                "bold red" if paid else "",
-            ),
+            row["address"],
+            row["received"],
+            row["sent"],
+            row["state"],
+            Text(paid or "-", "bold red" if paid else ""),
         )
     console.print()
     console.print(Text("2-hop walk", "bold"))

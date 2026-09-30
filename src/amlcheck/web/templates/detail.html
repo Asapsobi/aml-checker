@@ -31,6 +31,24 @@
 {% else %}
 <p>None.</p>
 {% endfor %}
+{% if network %}
+<h2>2-hop network</h2>
+<div class="network">{{ network }}</div>
+<table>
+  <thead><tr><th>Counterparty</th><th>Received from it</th><th>Sent to it</th><th>Walk</th><th>Paid by flagged</th></tr></thead>
+  <tbody>
+  {% for row in walk %}
+    <tr>
+      <td class="address"><a href="{{ explorer(c.chain, row.address) }}" target="_blank" rel="noopener noreferrer">{{ row.address }}</a></td>
+      <td>{{ row.received }}</td>
+      <td>{{ row.sent }}</td>
+      <td>{{ row.state }}</td>
+      <td class="address">{% for sender, amount in row.paid_by %}<span class="severity severity-block">{{ sender }} {{ amount }}</span>{% if not loop.last %}; {% endif %}{% else %}-{% endfor %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 <p class="hint">Record hash {{ check.record.record_hash }} · previous {{ check.record.prev_hash }} · amlcheck {{ c.tool_version }} · config {{ c.config_hash[:16] }}</p>
 {% for line in credits %}<p class="credit">{{ line }}</p>{% endfor %}
 {% endblock %}

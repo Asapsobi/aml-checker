@@ -15,7 +15,6 @@ Any web page the operator visits can send requests to 127.0.0.1, so:
 import asyncio
 import hmac
 import json
-import re
 import secrets
 import sqlite3
 from contextlib import closing
@@ -27,17 +26,19 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
+from markupsafe import Markup
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
-from amlcheck import __version__, adapters
+from amlcheck import __version__, adapters, graph
 from amlcheck.adapters import exposure, tron
 from amlcheck.config import Config, Secrets
 from amlcheck.core import audit, engine
 from amlcheck.core.address import AddressError, parse
 from amlcheck.core.clock import from_iso, iso, utcnow
 from amlcheck.core.models import Address, Chain, CheckResult, Verdict
+from amlcheck.explorer import explorer
 from amlcheck.export import SOURCE_LABELS, credits
 from amlcheck.inputs import amount_hint, client_name
 from amlcheck.net import RateLimiter, new_client
@@ -61,27 +62,6 @@ SECURITY_HEADERS = {
 }
 # Findings whose evidence is on the checked address's own chain, so its hashes can be linked.
 ON_CHAIN = {exposure.SOURCE, tron.SOURCE}
-EVM_TX = re.compile(r"0x[0-9a-fA-F]{64}")
-EVM_ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}")
-TRON_TX = re.compile(r"[0-9a-fA-F]{64}")
-TRON_ADDRESS = re.compile(r"T[1-9A-HJ-NP-Za-km-z]{33}")
-
-
-def explorer(chain: str, value: str) -> str | None:
-    """A block explorer page for an address or transaction on `chain`, or None for anything else.
-    Tronscan's routes are /transaction/:hash and /address/:id behind #/; BscScan's are /tx/ and
-    /address/."""
-    if chain == Chain.bsc:
-        if EVM_TX.fullmatch(value):
-            return f"https://bscscan.com/tx/{value}"
-        if EVM_ADDRESS.fullmatch(value):
-            return f"https://bscscan.com/address/{value}"
-    elif chain == Chain.tron:
-        if TRON_TX.fullmatch(value):
-            return f"https://tronscan.org/#/transaction/{value}"
-        if TRON_ADDRESS.fullmatch(value):
-            return f"https://tronscan.org/#/address/{value}"
-    return None
 
 
 @dataclass
@@ -142,6 +122,15 @@ def shown(record: audit.Stored) -> Shown:
     return Shown(record, from_iso(record.check["created_at"]), findings, sources)
 
 
+def stored_network(record: audit.Stored) -> dict[str, Any] | None:
+    """The 2-hop network a stored check walked, or None when it walked none."""
+    for source in record.sources:
+        if source["source"] == graph.TWO_HOP:
+            network = json.loads(source["evidence_meta_json"] or "{}").get("graph")
+            return network if isinstance(network, dict) else None
+    return None
+
+
 def local(moment: datetime | None) -> str:
     return moment.astimezone().strftime("%Y-%m-%d %H:%M %z") if moment else "-"
 
@@ -182,6 +171,7 @@ def create_app(
         amount: str = Form(""),
         client: str = Form(""),
         note: str = Form(""),
+        two_hop: str = Form(""),
     ) -> HTMLResponse:
         if not hmac.compare_digest(token, form_token):
             raise HTTPException(403, "This form has expired. Reload the page and try again.")
@@ -191,6 +181,7 @@ def create_app(
             "amount": amount,
             "client": client,
             "note": note,
+            "two_hop": two_hop,
         }
         fragment = request.headers.get("HX-Request") == "true"
         name = "_result.html" if fragment else "check.html"
@@ -200,10 +191,11 @@ def create_app(
             client_value = client_name(client)
         except (AddressError, ValueError) as e:
             return page(request, name, form=form, result=None, error=str(e))
+        walk = bool(two_hop) or adapters.wants_two_hop(config, amount_value)
         async with one_check:
             with closing(db.connect(database)) as conn:
                 result = await _screen(
-                    conn, config, secrets_, eagle, parsed, amount_value, note, client_value
+                    conn, config, secrets_, eagle, parsed, amount_value, note, client_value, walk
                 )
         return page(request, name, form={}, result=result, error=None, credits=attributions(result))
 
@@ -274,7 +266,20 @@ def create_app(
             found = next(audit.records(conn, check_id=check_id), None)
         if found is None:
             raise HTTPException(404, "No check with that ID.")
-        return page(request, "detail.html", check=shown(found), credits=credits([found]))
+        network = stored_network(found)
+        picture = (
+            Markup(graph.to_svg(network, found.check["chain"]))  # noqa: S704 - drawn by amlcheck, all text escaped
+            if network
+            else None
+        )
+        return page(
+            request,
+            "detail.html",
+            check=shown(found),
+            credits=credits([found]),
+            network=picture,
+            walk=graph.walk_rows(network) if network else [],
+        )
 
     return app
 
@@ -297,6 +302,7 @@ async def _screen(
     amount: str | None,
     note: str,
     client: str | None,
+    two_hop: bool,
 ) -> CheckResult:
     async with new_client(config.network.timeout_seconds) as http:
         sources = adapters.build(
@@ -306,6 +312,7 @@ async def _screen(
             config=config,
             secrets=secrets_,
             eagle_limiter=eagle,
+            two_hop=two_hop,
         )
         return await engine.screen(
             address,

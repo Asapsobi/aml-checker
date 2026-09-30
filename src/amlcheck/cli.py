@@ -29,7 +29,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-from amlcheck import __version__, adapters, export, labels, logs, watchlist
+from amlcheck import __version__, adapters, export, graph, labels, logs, watchlist
 from amlcheck import batch as batches
 from amlcheck.adapters import ofac, tron
 from amlcheck.config import (
@@ -179,6 +179,7 @@ def _run_check(
     json_output: bool,
     *,
     investigate: bool,
+    graph_file: Path | None = None,
 ) -> NoReturn:
     parsed = _parsed(address, chain)
     amount_hint = _amount(amount)
@@ -202,6 +203,17 @@ def _run_check(
     else:
         render(result, out)
         render_walk(result, out)
+    if graph_file is not None:
+        network = graph.of(result)
+        if network is None:
+            err.print("There is no 2-hop network to draw: the walk did not run.", soft_wrap=True)
+        else:
+            try:
+                svg = graph.to_svg(network, parsed.chain.value, standalone=True)
+                graph_file.write_text(svg, encoding="utf-8")
+            except OSError as e:
+                _fail(f"{graph_file} could not be written: {e}")
+            err.print(f"Graph written to {graph_file}", soft_wrap=True)
     raise typer.Exit(code=EXIT_FOR[result.verdict])
 
 
@@ -243,13 +255,18 @@ def investigate(
         str | None, typer.Option(help="Client the check is for; exports can filter by it.")
     ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print the JSON result.")] = False,
+    graph_file: Annotated[
+        Path | None, typer.Option("--graph", help="Also draw the network to this SVG file.")
+    ] = None,
 ) -> None:
     """A check with the 2-hop walk: whom the address's largest counterparties received USDT from.
 
     It reads the histories of the 20 largest counterparties, so it takes up to two minutes. It is
-    kept in the audit log like any check, with the same exit status.
+    kept in the audit log like any check, with the same exit status. --graph draws the network.
     """
-    _run_check(address, chain, amount, note, client, json_output, investigate=True)
+    _run_check(
+        address, chain, amount, note, client, json_output, investigate=True, graph_file=graph_file
+    )
 
 
 async def _batch(

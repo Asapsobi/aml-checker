@@ -2,14 +2,26 @@ import hashlib
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import closing
+from datetime import timedelta
 from pathlib import Path
 
 import httpx
 import pytest
-from conftest import BLACKLISTED, CHEIL_TRON, FUNNEL, Services, load
+from conftest import (
+    BLACKLISTED,
+    CHEIL_TRON,
+    CLEAN_BSC,
+    FUNNEL,
+    LAZARUS,
+    Services,
+    bsc_transfer,
+    load,
+)
 
 from amlcheck.config import db_path, load_config, load_secrets
-from amlcheck.web import CSP, create_app, evidence_tree, explorer
+from amlcheck.core.clock import utcnow
+from amlcheck.explorer import explorer
+from amlcheck.web import CSP, create_app, evidence_tree
 
 TOKEN = "form-token-for-tests"
 BASE = "http://127.0.0.1:8765"
@@ -138,3 +150,22 @@ def test_evidence_links_only_on_the_checked_chain() -> None:
     assert (leaf.key, leaf.href) == ("tx_hash", f"https://tronscan.org/#/transaction/{'ab' * 32}")
     plain = evidence_tree(evidence, None)
     assert plain.children[0].children[0].children[0].href is None
+
+
+async def test_a_2_hop_walk_shows_its_network(page: httpx.AsyncClient, synced: Services) -> None:
+    now = utcnow()
+    middleman = "0x3333333333333333333333333333333333333333"
+    synced.hypersync.transfers += [
+        bsc_transfer("0xdirty", now - timedelta(days=20), LAZARUS, middleman, "5000"),
+        bsc_transfer("0xpay", now - timedelta(days=3), middleman, CLEAN_BSC, "2000"),
+    ]
+    assert 'name="two_hop"' in (await page.get("/")).text
+    form = {"token": TOKEN, "address": CLEAN_BSC, "two_hop": "1"}
+    result = await page.post("/check", data=form, headers={"HX-Request": "true"})
+    assert "R-EXP-03" in result.text
+    check_id = result.text.split('href="/checks/')[1].split('"')[0]
+    detail = (await page.get(f"/checks/{check_id}")).text
+    assert "2-hop network" in detail
+    assert '<svg xmlns="http://www.w3.org/2000/svg"' in detail
+    assert f'href="https://bscscan.com/address/{middleman}"' in detail
+    assert "5,000.00" in detail

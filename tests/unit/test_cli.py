@@ -309,6 +309,17 @@ def test_investigate_walks_two_hops(synced: Services) -> None:
     assert {n["id"] for n in walked["meta"]["graph"]["nodes"]} >= {MIDDLEMAN, LAZARUS.lower()}
 
 
+def test_investigate_draws_the_network(synced: Services, tmp_path: Path) -> None:
+    paid_through_a_middleman(synced)
+    picture = tmp_path / "walk.svg"
+    result = runner.invoke(app, ["investigate", CLEAN_BSC, "--graph", str(picture)])
+    assert result.exit_code == 3, result.output
+    assert f"Graph written to {picture}" in result.output
+    svg = picture.read_text()
+    assert svg.startswith("<svg")
+    assert MIDDLEMAN in svg
+
+
 def test_a_large_amount_includes_the_walk(synced: Services) -> None:
     paid_through_a_middleman(synced)
     large = runner.invoke(app, ["check", CLEAN_BSC, "--amount", "20,000"])
