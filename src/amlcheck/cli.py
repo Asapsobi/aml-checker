@@ -32,6 +32,7 @@ from rich.text import Text
 from amlcheck import __version__, adapters, export, graph, labels, logs, vendor, watchlist
 from amlcheck import batch as batches
 from amlcheck.adapters import ofac, tron
+from amlcheck.adapters.exposure import plural
 from amlcheck.config import (
     Config,
     Secrets,
@@ -661,14 +662,20 @@ def audit_verify() -> None:
         report = audit.verify(conn)
     if report.intact:
         out.print(
-            f"Audit log intact: {report.records:,} records. Latest hash {report.head}."
+            f"Audit log intact: {plural(report.records, 'record')}. Latest hash {report.head}."
             " Keep a copy of it elsewhere: records cut off the end cannot be seen otherwise.",
             soft_wrap=True,
         )
         return
+    before = report.records
+    earlier = (
+        "No record comes before it."
+        if before == 0
+        else f"The {plural(before, 'record')} before it {'is' if before == 1 else 'are'} intact."
+    )
     _fail(
         f"Audit log BROKEN at record {report.broken_seq} (check {report.broken_check_id}):"
-        f" {report.reason}. The {report.records:,} records before it are intact."
+        f" {report.reason}. {earlier}"
     )
 
 

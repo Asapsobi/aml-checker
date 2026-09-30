@@ -441,6 +441,18 @@ def test_audit_list_filters_and_verify_finds_tampering(synced: Services, isolate
     broken = runner.invoke(app, ["audit", "verify"])
     assert broken.exit_code == 1
     assert "BROKEN at record 2" in broken.output
+    assert "The 1 record before it is intact." in " ".join(broken.output.split())
+
+
+def test_audit_verify_counts_one_record_as_one(synced: Services, isolated: Path) -> None:
+    assert runner.invoke(app, ["check", CHEIL_TRON]).exit_code == 5
+    intact = runner.invoke(app, ["audit", "verify"])
+    assert "Audit log intact: 1 record. Latest hash" in intact.output
+    with closing(sqlite3.connect(isolated / "amlcheck.db")) as conn:
+        conn.execute("UPDATE checks SET verdict = 'NO_HITS'")
+        conn.commit()
+    broken = runner.invoke(app, ["audit", "verify"])
+    assert "No record comes before it." in " ".join(broken.output.split())
 
 
 def test_audit_list_stays_readable_in_a_narrow_terminal(

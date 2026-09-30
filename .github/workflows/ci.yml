@@ -17,6 +17,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python: ["3.12", "3.14"]
+        # PRD §11: Windows is best-effort, so one Python version is enough.
+        include:
+          - os: windows-latest
+            python: "3.12"
     steps:
       # Pinned to commit SHAs: a tag can be moved, a SHA cannot. setup-uv has no major-version tag.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

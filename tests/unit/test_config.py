@@ -92,7 +92,7 @@ def test_no_keys_by_default() -> None:
 
 
 def test_key_from_the_project_env_file() -> None:
-    Path(".env").write_text("EAGLE_VIRTUAL_API_KEY=ev_live_project\n")
+    Path(".env").write_text("EAGLE_VIRTUAL_API_KEY=ev_live_project\n", encoding="utf-8")
     assert value(load_secrets().eagle_virtual_api_key) == "ev_live_project"
 
 
@@ -100,8 +100,10 @@ def test_environment_beats_project_env_file_beats_home_env_file(
     isolated: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     isolated.mkdir()
-    (isolated / ".env").write_text("EAGLE_VIRTUAL_API_KEY=home\nTRONGRID_API_KEY=home\n")
-    Path(".env").write_text("TRONGRID_API_KEY=project\n")
+    (isolated / ".env").write_text(
+        "EAGLE_VIRTUAL_API_KEY=home\nTRONGRID_API_KEY=home\n", encoding="utf-8"
+    )
+    Path(".env").write_text("TRONGRID_API_KEY=project\n", encoding="utf-8")
     monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "environment")
     secrets = load_secrets()
     assert value(secrets.eagle_virtual_api_key) == "environment"
@@ -109,7 +111,7 @@ def test_environment_beats_project_env_file_beats_home_env_file(
 
 
 def test_key_left_empty_counts_as_missing() -> None:
-    Path(".env").write_text("EAGLE_VIRTUAL_API_KEY=\n")
+    Path(".env").write_text("EAGLE_VIRTUAL_API_KEY=\n", encoding="utf-8")
     assert load_secrets().eagle_virtual_api_key is None
 
 
