@@ -561,6 +561,9 @@ D6–D12 in Phase 1, D13–D23 in Phase 2, D24–D32 in Phase 3 and D33–D38 in
 | D43 | Errors are `application/problem+json` (RFC 9457). Every verdict, INCOMPLETE included, is a 200 | A failed source is part of the result, not an HTTP failure |
 | D44 | amlcheck installs with `uv tool install` or `pipx install` from the GitHub repo, pinned to a commit or tag, with systemd units for the API and the sync ([server.md](server.md)) (Q20) | Nothing to publish or host, and the server runs the version reviewed |
 | D45 | The version is 0.5.0 from Phase 5 on. It had stayed 0.1.0 since Phase 0 | Every audit record keeps `tool_version`, which should tell the Phase 5 code apart |
+| D46 | A source result has no `raw_ref`, the pointer to a cached raw response in PRD §7. The evidence itself is kept in the audit record instead: list entry IDs, transaction hashes, blocks, and the provider's own answer fields | Found in the review after Phase 5 and recorded late. The cache keeps answers for 15 minutes, so a pointer into it would soon lead nowhere. Keeping raw answers for good would build a copy of Eagle Virtual's data, which its licence allows only by written agreement (V4) |
+| D47 | CI also runs on Windows, with Python 3.12 only | PRD §11 asks for Windows on a best-effort basis. One job shows whether it works, without doubling the matrix |
+| D48 | API keys come only from the environment and `.env` files. The OS keyring, which PRD §0 and §8 offer as optional, is not used (Q22) | The owner's answer. It works the same on the Mac and on a headless server, which has no keyring |
 
 ## Open questions
 
@@ -588,6 +591,8 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q18 | Where does the corridor system run, and so where must the API be reachable? | Phase 5 | Decided |
 | Q19 | Build Eagle Virtual key rotation without a Business plan? | Phase 5 | Decided |
 | Q20 | How is amlcheck packaged: pipx or uv tool, or a single binary? | Phase 5 | Decided |
+| Q21 | PRD §15 Q5: how long must audit records be kept, for the corridor's jurisdiction? | Phase 3 | Decided |
+| Q22 | Should API keys also be read from the OS keyring (PRD §0 rule 6, §8)? | Phase 5 | Decided |
 
 ### Answers
 
@@ -668,8 +673,12 @@ filter by it, ignoring case (D24).
 - **Q19:** build it anyway. It is tested with mocks only, since there is no Business plan (D40).
 - **Q20:** `uv tool` or `pipx`, installed from the GitHub repo (D44).
 
-PRD §15 Q5 (how long to keep audit records) is still open. Until it is answered, nothing is
-deleted: the audit log and the API's idempotency keys are append-only.
+**Q21 and Q22, decided 2026-09-30.**
+
+- **Q21 (PRD Q5):** keep everything. amlcheck deletes no audit record and no idempotency key. That
+  meets any rule to keep records for at least a number of years, such as FATF Recommendation 11's
+  five years for transaction records. No purge command is built.
+- **Q22:** no. Keys stay in the environment and `.env` (D48).
 
 ## Phase 0 exit criteria
 
