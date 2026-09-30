@@ -71,7 +71,7 @@ except that each object's keys may come in another order. `404` when no check ha
 
 ### `GET /v1/health`
 
-`{"status": "ok", "tool_version": "0.5.0"}` while the API is up. It does not ask any source. Use
+`{"status": "ok", "tool_version": "0.5.1"}` while the API is up. It does not ask any source. Use
 `amlcheck status` for the sources' health.
 
 ## The result
