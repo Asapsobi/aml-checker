@@ -12,10 +12,12 @@ It combines sanctions lists, stablecoin issuer freeze/seize history, on-chain ex
 - [Verification report](docs/verification.md) — every data source checked against the live service, the decisions taken, and the open questions.
 - [Acceptance tests](docs/acceptance.md) — where each PRD acceptance test is covered, and the live results of each phase.
 - [Scheduling](docs/scheduling.md) — re-screening the watchlist every day with launchd (macOS) or cron (Linux).
+- [Local HTTP API](docs/api.md) — `amlcheck api` for a corridor system on the same machine: requests, the JSON contract, idempotency and errors.
+- [Server install](docs/server.md) — installing amlcheck next to the corridor system on a Linux server, with systemd.
 
 ## Status
 
-Phases 0 to 4 are done. `amlcheck check` screens an address against:
+Phases 0 to 5 are done. `amlcheck check` screens an address against:
 
 - the OFAC SDN list
 - Eagle Virtual's record of stablecoin freezes
@@ -101,6 +103,29 @@ uv run amlcheck investigate 0xd5efbbd79fcdc2834b7e2dcc7a0c6279e1281e36 --graph n
 ```
 
 `investigate` adds the 2-hop walk to a check. It reads the address's 20 largest counterparties, and raises R-EXP-03 when one of them received at least 1,000 USDT from a sanctioned or frozen wallet. It takes up to two minutes, and it prints the walk as a table; `--graph` also draws it as a picture. A `check` with an `--amount` of 10,000 USDT or more includes the walk too, and so does the web page's "2-hop walk" box, whose details page shows the picture. The limits are under `[two_hop]` in `config.toml`.
+
+### From another program: the API
+
+```bash
+uv run amlcheck api
+```
+
+This serves `POST /v1/check` on `127.0.0.1:8766` for a program on the same computer, such as a corridor system that screens an address before it settles. It answers with the same JSON as `check --json`. Every request needs `AMLCHECK_API_TOKEN` (set it in `.env`) as a Bearer token. An `Idempotency-Key` lets the caller retry without making a second check. See [docs/api.md](docs/api.md), and `scripts/corridor_mock.py` for an example caller.
+
+### Installing as a tool
+
+On a server, or anywhere amlcheck should run without a copy of this repository:
+
+```bash
+uv tool install "git+https://github.com/Asapsobi/aml-checker@<commit or tag>"
+amlcheck --version
+```
+
+`pipx install` takes the same argument. The keys then go in `~/.amlcheck/.env`. [docs/server.md](docs/server.md) sets it up on Linux, with systemd services for the API and the daily sync.
+
+### Several Eagle Virtual keys
+
+On a paid plan (Business has 5 keys, each with its own daily count), list the keys in `EAGLE_VIRTUAL_API_KEY`, separated by commas. When one key's day is used up, the next is used. A key after the first is used only when its plan is paid, since the Free plan counts per account and Eagle Virtual's terms forbid getting around its limits. `amlcheck status` shows each key.
 
 ### A paid vendor, later
 

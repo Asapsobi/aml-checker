@@ -93,3 +93,28 @@ Live, the walk of `0xd5efbbd7…1e36` took about 70 seconds, within HyperSync's 
 Of its 7 counterparties, the sanctioned MESRI wallet was flagged itself (R-EXP-01), 5 were hubs,
 and 1 was read, with nothing flagged behind it (V15). Before the pacing, the same walk had 6 of 7
 reads refused, and it said INCOMPLETE rather than clean.
+
+## Phase 5 exit criteria
+
+| Criterion | Tested in | Live result, 2026-09-30 |
+|---|---|---|
+| A corridor mock calls the API and gets the stable JSON contract | `test_api.py::test_a_corridor_calls_the_api_and_gets_the_contract`: `scripts/corridor_mock.py`, which uses the Python standard library only, calls `amlcheck api` over real HTTP. It gets the contract, a replay for a retried Idempotency-Key, and 401 without the token | The same script against the owner's keys: BLOCK for `TA3941uF…86mz` in 2.8 seconds, REVIEW for `0xd5efbbd7…1e36` in 8.9 seconds, and its retry replayed in 0.01 seconds (V16) |
+
+The API is tested in `test_api.py`:
+
+- the same JSON as `check --json`, and a stored check read back unchanged
+- the token, the host names, and bad requests refused before any check
+- idempotency: a replay, a key reused for another request (422), a repeat while the first runs
+  (409), a failed check that frees its key, and a tampered record that is not served
+- the 2-hop walk for large amounts or on request
+- the command, which refuses to start without a token
+
+Eagle Virtual key rotation is tested in `test_eagle_virtual.py`:
+
+- the next key when one is used up, and its rest until midnight UTC
+- a later key on the Free plan never used
+- every key used up, with the time one is back
+- the health of each key
+
+Packaging was tried by hand (V16). The wheel was installed with `uv tool install` and with pipx.
+It was also installed with `uv tool install` straight from the GitHub repo.
