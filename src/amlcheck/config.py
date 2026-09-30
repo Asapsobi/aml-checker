@@ -136,6 +136,15 @@ class TwoHop(_Section):
     parallel_reads: int = Field(default=3, gt=0, le=10)
 
 
+class Vendor(_Section):
+    """A commercial attribution vendor (PRD Phase 4): none by default (Q14). `adapter` names a
+    class as "module:Class" (see amlcheck/vendor.py). It is asked when a check comes out REVIEW, or
+    when its --amount is at least `min_amount_usdt` (PRD Q3; 0 keeps it to REVIEW)."""
+
+    adapter: str = ""
+    min_amount_usdt: float = Field(default=0, ge=0)
+
+
 class Heuristics(_Section):
     """R-HEU-01 to R-HEU-05 (PRD §5.2, thresholds from Q7). Every heuristic is a REVIEW."""
 
@@ -161,6 +170,7 @@ class Config(_Section):
     exposure: Exposure = Exposure()
     heuristics: Heuristics = Heuristics()
     two_hop: TwoHop = TwoHop()
+    vendor: Vendor = Vendor()
     ofac: Ofac = Ofac()
     eagle_virtual: EagleVirtual = EagleVirtual()
     tron: Tron = Tron()

@@ -29,7 +29,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-from amlcheck import __version__, adapters, export, graph, labels, logs, watchlist
+from amlcheck import __version__, adapters, export, graph, labels, logs, vendor, watchlist
 from amlcheck import batch as batches
 from amlcheck.adapters import ofac, tron
 from amlcheck.config import (
@@ -166,8 +166,25 @@ async def _screen(
             address.chain, conn=conn, http=http, config=config, secrets=secrets, two_hop=two_hop
         )
         return await engine.screen(
-            address, sources, conn=conn, config=config, amount=amount, note=note, client=client
+            address,
+            sources,
+            conn=conn,
+            config=config,
+            amount=amount,
+            note=note,
+            client=client,
+            then=vendor.stage(config, amount),
         )
+
+
+def _config_checked() -> Config:
+    """The config, with its vendor loaded once to catch a wrong `[vendor] adapter` up front."""
+    config = _config()
+    try:
+        vendor.load(config.vendor.adapter)
+    except vendor.VendorError as e:
+        _fail(str(e))
+    return config
 
 
 def _run_check(
@@ -184,7 +201,7 @@ def _run_check(
     parsed = _parsed(address, chain)
     amount_hint = _amount(amount)
     client_name = _client(client)
-    config = _config()
+    config = _config_checked()
     secrets = load_secrets()
     two_hop = investigate or adapters.wants_two_hop(config, amount_hint)
     if two_hop and not json_output:
@@ -342,7 +359,7 @@ def batch(
             [f"... and {len(problems) - 20} more"] if len(problems) > 20 else []
         )
         _fail(f"Nothing was screened. Fix these rows in {file}:\n" + "\n".join(shown))
-    config = _config()
+    config = _config_checked()
     secrets = load_secrets()
     with ExitStack() as stack:
         results_file = None
@@ -465,6 +482,12 @@ def status() -> None:
         _row(h.label, f"{h.status.value}: {h.detail}", STATUS_STYLE[h.status])
         for warning in h.warnings:
             _row("", f"warning: {warning}", "yellow")
+    if config.vendor.adapter:
+        least = config.vendor.min_amount_usdt
+        when = "REVIEW results" + (f" and amounts from {least:,.0f} USDT" if least else "")
+        _row("Vendor", f"{config.vendor.adapter}, asked for {when}")
+    else:
+        _row("Vendor", "none set up (a paid vendor can be added under [vendor])", "dim")
 
 
 def _day(text: str, option: str) -> datetime:
@@ -741,7 +764,7 @@ def watch_run(
     Each check goes to the audit log. Exit status: 0 when no verdict changed, 6 when one did,
     1 when the run could not start. To run it on a schedule, see docs/scheduling.md.
     """
-    config = _config()
+    config = _config_checked()
     secrets = load_secrets()
     with closing(_database()) as conn:
         watched = watchlist.entries(conn)
@@ -796,7 +819,7 @@ def web(
     """
     from amlcheck.web import serve  # the web stack loads only for this command
 
-    config = _config()
+    config = _config_checked()
     secrets = load_secrets()
     url = f"http://127.0.0.1:{port}/"
     out.print(f"amlcheck web page at {url}  (Ctrl+C stops it)", soft_wrap=True)

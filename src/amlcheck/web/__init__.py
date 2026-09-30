@@ -31,7 +31,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
-from amlcheck import __version__, adapters, graph
+from amlcheck import __version__, adapters, graph, vendor
 from amlcheck.adapters import exposure, tron
 from amlcheck.config import Config, Secrets
 from amlcheck.core import audit, engine
@@ -138,6 +138,7 @@ def local(moment: datetime | None) -> str:
 def create_app(
     *, config: Config, secrets_: Secrets, database: Path, token: str | None = None
 ) -> FastAPI:
+    vendor.load(config.vendor.adapter)  # a wrong `[vendor] adapter` stops the page from starting
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[HOST, "localhost"])
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -322,6 +323,7 @@ async def _screen(
             amount=amount,
             note=note.strip() or None,
             client=client,
+            then=vendor.stage(config, amount),
         )
 
 
