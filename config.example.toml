@@ -55,6 +55,26 @@ risky_tags = ["mixer", "bridge", "high_risk"]
 # sanctions or freeze finding.
 allowlist_tag = "allowlist"
 
+[two_hop]
+# 2-hop exposure (R-EXP-03): `amlcheck investigate` always walks two hops; a check does too when
+# its --amount is at least this. 0 keeps the walk to `investigate` and the web page's box.
+auto_amount_usdt = 10000.0
+# R-EXP-03: a counterparty received at least this much from one sanctioned or frozen wallet.
+min_flagged_usdt = 1000.0
+# How many of the largest counterparties are read.
+counterparties = 20
+# A counterparty with more transfers than this is a hub (an exchange, say), listed but not read.
+max_transfers = 1000
+# The walk's time limit. A counterparty not read by then makes the result INCOMPLETE.
+time_budget_seconds = 120.0
+parallel_reads = 3
+
+[vendor]
+# A paid attribution vendor, as "module:Class" (see src/amlcheck/vendor.py). None is set up.
+adapter = ""
+# The vendor is asked for REVIEW results, and for checks of at least this --amount (0: REVIEW only).
+min_amount_usdt = 0.0
+
 [ofac]
 # Official OFAC Sanctions List Service download (see docs/verification.md).
 sdn_url = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML"

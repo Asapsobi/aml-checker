@@ -72,3 +72,24 @@ The web page is tested in `test_web.py`:
 
 Live, a BSC check through the page gave the same REVIEW as the command line, with its evidence linked
 to BscScan. The first check took 35 seconds; later ones took 3.5 to 11 seconds, as on the command line.
+
+## Phase 4 exit criteria
+
+| Criterion | Tested in | Live result, 2026-09-30 |
+|---|---|---|
+| The vendor adapter is swappable via config | `test_vendor.py::test_the_vendor_is_swapped_in_config`: three stand-in vendors are swapped in through `config.toml`. The vendor is asked for REVIEW results only, adds its attribution, and never changes the verdict, even when it fails | No vendor is set up (Q14) |
+| The graph renders a 2-hop view for a fixture | `test_graph.py::test_the_graph_draws_a_2_hop_view`: the SVG parses, has a node for every state, a mark for each (never colour alone), explorer links and the legend | The walk of `0xd5efbbd7…1e36`, drawn on the web page in dark mode |
+
+The 2-hop walk (R-EXP-03) is tested in `test_two_hop.py`:
+
+- a sanctioned sender behind a counterparty, and the 1,000 USDT threshold
+- a counterparty flagged itself, and one that is a hub
+- only the largest counterparties read, within the time budget
+- an unreadable counterparty, which makes the result INCOMPLETE
+
+HyperSync's pacing is tested in `test_hypersync.py`.
+
+Live, the walk of `0xd5efbbd7…1e36` took about 70 seconds, within HyperSync's free-plan budget.
+Of its 7 counterparties, the sanctioned MESRI wallet was flagged itself (R-EXP-01), 5 were hubs,
+and 1 was read, with nothing flagged behind it (V15). Before the pacing, the same walk had 6 of 7
+reads refused, and it said INCOMPLETE rather than clean.

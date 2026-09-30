@@ -15,7 +15,7 @@ It combines sanctions lists, stablecoin issuer freeze/seize history, on-chain ex
 
 ## Status
 
-Phases 0 to 3 are done. `amlcheck check` screens an address against:
+Phases 0 to 4 are done. `amlcheck check` screens an address against:
 
 - the OFAC SDN list
 - Eagle Virtual's record of stablecoin freezes
@@ -93,6 +93,18 @@ uv run amlcheck web
 ```
 
 This opens a page in your browser with a check form, the history of checks, and each check's details with links to Tronscan and BscScan. It runs on `127.0.0.1` only, so no other computer can reach it; stop it with Ctrl+C.
+
+### Investigating an address
+
+```bash
+uv run amlcheck investigate 0xd5efbbd79fcdc2834b7e2dcc7a0c6279e1281e36 --graph network.svg
+```
+
+`investigate` adds the 2-hop walk to a check. It reads the address's 20 largest counterparties, and raises R-EXP-03 when one of them received at least 1,000 USDT from a sanctioned or frozen wallet. It takes up to two minutes, and it prints the walk as a table; `--graph` also draws it as a picture. A `check` with an `--amount` of 10,000 USDT or more includes the walk too, and so does the web page's "2-hop walk" box, whose details page shows the picture. The limits are under `[two_hop]` in `config.toml`.
+
+### A paid vendor, later
+
+None is set up. A commercial attribution vendor (Chainalysis, TRM, Elliptic, Crystal) can be added without changing amlcheck: see `src/amlcheck/vendor.py`, and name the class under `[vendor]` in `config.toml`. It is asked only for REVIEW results, or for amounts above a set value, and it adds attribution without ever changing the verdict.
 
 ### Your own labels
 
