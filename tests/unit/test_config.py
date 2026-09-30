@@ -123,3 +123,15 @@ def test_broken_toml_is_reported(tmp_path: Path) -> None:
     path.write_text("[freshness\n")
     with pytest.raises(tomllib.TOMLDecodeError):
         load_config(path)
+
+
+def test_several_eagle_virtual_keys_in_order_each_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Q19: a paid plan's keys, separated by commas."""
+    monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", " ev_live_a, ev_live_b,,ev_live_a ,ev_live_c ")
+    keys = load_secrets().eagle_virtual_keys()
+    assert [value(k) for k in keys] == ["ev_live_a", "ev_live_b", "ev_live_c"]
+    assert "ev_live_a" not in repr(keys)
+    monkeypatch.setenv("EAGLE_VIRTUAL_API_KEY", "ev_live_only")
+    assert [value(k) for k in load_secrets().eagle_virtual_keys()] == ["ev_live_only"]
+    monkeypatch.delenv("EAGLE_VIRTUAL_API_KEY")
+    assert load_secrets().eagle_virtual_keys() == ()

@@ -11,7 +11,7 @@ import pytest
 import respx
 from typer.testing import CliRunner
 
-from amlcheck.adapters import hypersync
+from amlcheck.adapters import eagle_virtual, hypersync
 from amlcheck.cli import app
 from amlcheck.config import Ofac
 from amlcheck.core.address import tron_from_hex
@@ -41,7 +41,12 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path / "home"
     monkeypatch.setenv("AMLCHECK_HOME", str(home))
     monkeypatch.delenv("AMLCHECK_CONFIG", raising=False)
-    for key in ("EAGLE_VIRTUAL_API_KEY", "TRONGRID_API_KEY", "HYPERSYNC_API_TOKEN"):
+    for key in (
+        "EAGLE_VIRTUAL_API_KEY",
+        "TRONGRID_API_KEY",
+        "HYPERSYNC_API_TOKEN",
+        "AMLCHECK_API_TOKEN",
+    ):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     return home
@@ -52,6 +57,12 @@ def fresh_hypersync() -> None:
     """HyperSync's budget and start blocks are shared by a whole process: each test starts clean."""
     hypersync.BUDGET.renewed()
     hypersync._START_BLOCKS.clear()
+
+
+@pytest.fixture(autouse=True)
+def fresh_keys() -> None:
+    """So are the Eagle Virtual keys that rest and the plans they are on."""
+    eagle_virtual.KEYS.forget()
 
 
 @pytest.fixture(autouse=True)
