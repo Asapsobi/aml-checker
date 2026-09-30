@@ -564,6 +564,7 @@ D6–D12 in Phase 1, D13–D23 in Phase 2, D24–D32 in Phase 3 and D33–D38 in
 | D46 | A source result has no `raw_ref`, the pointer to a cached raw response in PRD §7. The evidence itself is kept in the audit record instead: list entry IDs, transaction hashes, blocks, and the provider's own answer fields | Found in the review after Phase 5 and recorded late. The cache keeps answers for 15 minutes, so a pointer into it would soon lead nowhere. Keeping raw answers for good would build a copy of Eagle Virtual's data, which its licence allows only by written agreement (V4) |
 | D47 | CI also runs on Windows, with Python 3.12 only | PRD §11 asks for Windows on a best-effort basis. One job shows whether it works, without doubling the matrix |
 | D48 | API keys come only from the environment and `.env` files. The OS keyring, which PRD §0 and §8 offer as optional, is not used (Q22) | The owner's answer. It works the same on the Mac and on a headless server, which has no keyring |
+| D49 | Every release has its own version, tagged `vX.Y.Z` on main's merge commit and published as a GitHub release. A fix raises the last number (0.5.1), new features the middle one | Every audit record keeps `tool_version`, so records made by different code must never share a version. A server pins the tag |
 
 ## Open questions
 
