@@ -23,7 +23,7 @@ from pydantic import SecretStr
 
 from amlcheck.adapters import ofac
 from amlcheck.adapters.exposure import ExposureAdapter
-from amlcheck.adapters.hypersync import HyperSync, HyperSyncError, transfers_in
+from amlcheck.adapters.hypersync import Budget, HyperSync, HyperSyncError, transfers_in
 from amlcheck.config import Config
 from amlcheck.core.address import parse
 from amlcheck.core.clock import from_timestamp
@@ -401,3 +401,77 @@ async def test_bsc_exposure_flags_an_ofac_listed_counterparty(
     assert {f.rule_id for f in result.findings} == {"R-EXP-01", "R-EXP-02"}
     direct = next(f for f in result.findings if f.rule_id == "R-EXP-01")
     assert "LAZARUS GROUP (entry 27307)" in direct.summary
+
+
+def limited(
+    status: int, remaining: int, reset: int, page: dict[str, Any] | None = None
+) -> httpx.Response:
+    """An answer carrying HyperSync's budget headers, as recorded on 2026-09-30 (V15)."""
+    headers = {
+        "x-ratelimit-cost": "1000",
+        "x-ratelimit-limit": "30000, 30000;w=60",
+        "x-ratelimit-remaining": str(remaining),
+        "x-ratelimit-reset": str(reset),
+    }
+    return (
+        httpx.Response(status, json=page, headers=headers)
+        if page
+        else httpx.Response(status, headers=headers)
+    )
+
+
+EMPTY = {"data": [], "archive_height": 500, "next_block": 501, "total_execution_time": 1}  # the end
+
+
+def paced(http: httpx.AsyncClient, sleeps: Sleeps) -> HyperSync:
+    return HyperSync(
+        http,
+        HYPERSYNC,
+        SecretStr(HYPERSYNC_TOKEN),
+        max_retry_after=10,
+        sleep=sleeps,
+        budget=Budget(clock=lambda: 0.0),
+    )
+
+
+async def test_a_spent_budget_waits_for_the_next_window(network: respx.MockRouter) -> None:
+    route = network.post(f"{HYPERSYNC}/query").mock(
+        side_effect=[limited(200, 0, 30, EMPTY), limited(200, 29000, 60, EMPTY)]
+    )
+    sleeps = Sleeps()
+    async with httpx.AsyncClient() as http:
+        hypersync = paced(http, sleeps)
+        await hypersync.first_activity(ME)  # the answer says the minute's budget is spent
+        await hypersync.first_activity(ME)
+    assert sleeps.calls == [30.0]  # waited for the reset before asking again
+    assert route.call_count == 2
+
+
+async def test_a_429_is_waited_out_until_the_window_resets(network: respx.MockRouter) -> None:
+    network.post(f"{HYPERSYNC}/query").mock(
+        side_effect=[limited(429, 0, 20), limited(200, 29000, 60, EMPTY)]
+    )
+    sleeps = Sleeps()
+    async with httpx.AsyncClient() as http:
+        assert await paced(http, sleeps).first_activity(ME) is None
+    assert sleeps.calls == [20.0]
+
+
+async def test_a_wait_longer_than_a_minute_is_an_error(network: respx.MockRouter) -> None:
+    network.post(f"{HYPERSYNC}/query").mock(side_effect=[limited(429, 0, 90)])
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(
+            HyperSyncError, match="budget for this minute is spent; it resets in 90 s"
+        ):
+            await paced(http, Sleeps()).first_activity(ME)
+
+
+async def test_the_start_block_is_found_once_an_hour(chain: HyperSyncMock) -> None:
+    async with httpx.AsyncClient() as http:
+        hypersync = client(http)
+        first = await hypersync.start_block(SINCE, chain.head)
+        found = len(chain.queries)
+        assert await hypersync.start_block(SINCE + timedelta(minutes=30), chain.head) == first
+        assert len(chain.queries) == found  # nothing asked again
+        earlier = await hypersync.start_block(SINCE - timedelta(minutes=30), chain.head)
+    assert earlier < first  # never reused for an earlier moment

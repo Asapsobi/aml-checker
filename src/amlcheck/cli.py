@@ -29,7 +29,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-from amlcheck import __version__, adapters, export, labels, logs, watchlist
+from amlcheck import __version__, adapters, export, graph, labels, logs, vendor, watchlist
 from amlcheck import batch as batches
 from amlcheck.adapters import ofac, tron
 from amlcheck.config import (
@@ -47,7 +47,15 @@ from amlcheck.core.clock import iso, utcnow
 from amlcheck.core.models import Address, Chain, CheckResult, SourceHealth, Verdict
 from amlcheck.inputs import amount_hint, client_name
 from amlcheck.net import new_client
-from amlcheck.output import STATUS_STYLE, VERDICT_STYLE, attributions, local, render, to_json
+from amlcheck.output import (
+    STATUS_STYLE,
+    VERDICT_STYLE,
+    attributions,
+    local,
+    render,
+    render_walk,
+    to_json,
+)
 from amlcheck.storage import db
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -151,14 +159,79 @@ async def _screen(
     amount: str | None,
     note: str | None,
     client: str | None,
+    two_hop: bool,
 ) -> CheckResult:
     async with new_client(config.network.timeout_seconds) as http:
         sources = adapters.build(
-            address.chain, conn=conn, http=http, config=config, secrets=secrets
+            address.chain, conn=conn, http=http, config=config, secrets=secrets, two_hop=two_hop
         )
         return await engine.screen(
-            address, sources, conn=conn, config=config, amount=amount, note=note, client=client
+            address,
+            sources,
+            conn=conn,
+            config=config,
+            amount=amount,
+            note=note,
+            client=client,
+            then=vendor.stage(config, amount),
         )
+
+
+def _config_checked() -> Config:
+    """The config, with its vendor loaded once to catch a wrong `[vendor] adapter` up front."""
+    config = _config()
+    try:
+        vendor.load(config.vendor.adapter)
+    except vendor.VendorError as e:
+        _fail(str(e))
+    return config
+
+
+def _run_check(
+    address: str,
+    chain: Chain | None,
+    amount: str | None,
+    note: str | None,
+    client: str | None,
+    json_output: bool,
+    *,
+    investigate: bool,
+    graph_file: Path | None = None,
+) -> NoReturn:
+    parsed = _parsed(address, chain)
+    amount_hint = _amount(amount)
+    client_name = _client(client)
+    config = _config_checked()
+    secrets = load_secrets()
+    two_hop = investigate or adapters.wants_two_hop(config, amount_hint)
+    if two_hop and not json_output:
+        budget = config.two_hop.time_budget_seconds
+        why = "" if investigate else "The amount is large, so "
+        err.print(
+            f"{why}the 2-hop walk is included: this can take up to {budget:g} seconds.",
+            soft_wrap=True,
+        )
+    with closing(_database()) as conn:
+        result = asyncio.run(
+            _screen(parsed, conn, config, secrets, amount_hint, note, client_name, two_hop)
+        )
+    if json_output:
+        typer.echo(json.dumps(to_json(result), indent=2, ensure_ascii=False))
+    else:
+        render(result, out)
+        render_walk(result, out)
+    if graph_file is not None:
+        network = graph.of(result)
+        if network is None:
+            err.print("There is no 2-hop network to draw: the walk did not run.", soft_wrap=True)
+        else:
+            try:
+                svg = graph.to_svg(network, parsed.chain.value, standalone=True)
+                graph_file.write_text(svg, encoding="utf-8")
+            except OSError as e:
+                _fail(f"{graph_file} could not be written: {e}")
+            err.print(f"Graph written to {graph_file}", soft_wrap=True)
+    raise typer.Exit(code=EXIT_FOR[result.verdict])
 
 
 @app.command()
@@ -178,24 +251,39 @@ def check(
 ) -> None:
     """Screen one address. The chain is detected from the address format.
 
-    Every check is written to the audit log before its result is shown. Exit status:
+    Every check is written to the audit log before its result is shown. An --amount of at least
+    [two_hop] auto_amount_usdt (10,000 by default) includes the 2-hop walk. Exit status:
     0 NO_HITS, 3 REVIEW, 4 INCOMPLETE, 5 BLOCK, 1 when the check could not run.
     """
-    try:
-        parsed = parse(address, chain)
-    except AddressError as e:
-        _fail(str(e))
-    amount_hint = _amount(amount)
-    client_name = _client(client)
-    config = _config()
-    secrets = load_secrets()
-    with closing(_database()) as conn:
-        result = asyncio.run(_screen(parsed, conn, config, secrets, amount_hint, note, client_name))
-    if json_output:
-        typer.echo(json.dumps(to_json(result), indent=2, ensure_ascii=False))
-    else:
-        render(result, out)
-    raise typer.Exit(code=EXIT_FOR[result.verdict])
+    _run_check(address, chain, amount, note, client, json_output, investigate=False)
+
+
+@app.command()
+def investigate(
+    address: Annotated[str, typer.Argument(help="TRON (T...) or BSC (0x...) address.")],
+    chain: Annotated[
+        Chain | None, typer.Option(help="Set the chain instead of detecting it.")
+    ] = None,
+    amount: Annotated[
+        str | None, typer.Option(help="Planned amount in USDT, kept in the audit log.")
+    ] = None,
+    note: Annotated[str | None, typer.Option(help="Operator note, kept in the audit log.")] = None,
+    client: Annotated[
+        str | None, typer.Option(help="Client the check is for; exports can filter by it.")
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print the JSON result.")] = False,
+    graph_file: Annotated[
+        Path | None, typer.Option("--graph", help="Also draw the network to this SVG file.")
+    ] = None,
+) -> None:
+    """A check with the 2-hop walk: whom the address's largest counterparties received USDT from.
+
+    It reads the histories of the 20 largest counterparties, so it takes up to two minutes. It is
+    kept in the audit log like any check, with the same exit status. --graph draws the network.
+    """
+    _run_check(
+        address, chain, amount, note, client, json_output, investigate=True, graph_file=graph_file
+    )
 
 
 async def _batch(
@@ -271,7 +359,7 @@ def batch(
             [f"... and {len(problems) - 20} more"] if len(problems) > 20 else []
         )
         _fail(f"Nothing was screened. Fix these rows in {file}:\n" + "\n".join(shown))
-    config = _config()
+    config = _config_checked()
     secrets = load_secrets()
     with ExitStack() as stack:
         results_file = None
@@ -394,6 +482,12 @@ def status() -> None:
         _row(h.label, f"{h.status.value}: {h.detail}", STATUS_STYLE[h.status])
         for warning in h.warnings:
             _row("", f"warning: {warning}", "yellow")
+    if config.vendor.adapter:
+        least = config.vendor.min_amount_usdt
+        when = "REVIEW results" + (f" and amounts from {least:,.0f} USDT" if least else "")
+        _row("Vendor", f"{config.vendor.adapter}, asked for {when}")
+    else:
+        _row("Vendor", "none set up (a paid vendor can be added under [vendor])", "dim")
 
 
 def _day(text: str, option: str) -> datetime:
@@ -670,7 +764,7 @@ def watch_run(
     Each check goes to the audit log. Exit status: 0 when no verdict changed, 6 when one did,
     1 when the run could not start. To run it on a schedule, see docs/scheduling.md.
     """
-    config = _config()
+    config = _config_checked()
     secrets = load_secrets()
     with closing(_database()) as conn:
         watched = watchlist.entries(conn)
@@ -725,7 +819,7 @@ def web(
     """
     from amlcheck.web import serve  # the web stack loads only for this command
 
-    config = _config()
+    config = _config_checked()
     secrets = load_secrets()
     url = f"http://127.0.0.1:{port}/"
     out.print(f"amlcheck web page at {url}  (Ctrl+C stops it)", soft_wrap=True)

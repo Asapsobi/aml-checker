@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from amlcheck import graph
 from amlcheck.core.clock import iso
 from amlcheck.core.models import CheckResult, Finding, Severity, SourceStatus, Verdict
 
@@ -96,6 +97,29 @@ def render(result: CheckResult, console: Console) -> None:
     for line in attributions(result):
         console.print()
         console.print(Text(line, "dim"), soft_wrap=True)
+
+
+def render_walk(result: CheckResult, console: Console) -> None:
+    """The 2-hop walk, when the check had one: each counterparty in scope, and the sanctioned or
+    frozen wallets that paid it (R-EXP-03)."""
+    network = graph.of(result)
+    if network is None:
+        return
+    table = Table(box=None, pad_edge=False, header_style="bold", padding=(0, 2, 0, 0))
+    for column in ("Counterparty", "Received from it", "Sent to it", "Walk", "Paid by flagged"):
+        table.add_column(column, overflow="fold")
+    for row in graph.walk_rows(network):
+        paid = "; ".join(f"{sender} {amount}" for sender, amount in row["paid_by"])
+        table.add_row(
+            row["address"],
+            row["received"],
+            row["sent"],
+            row["state"],
+            Text(paid or "-", "bold red" if paid else ""),
+        )
+    console.print()
+    console.print(Text("2-hop walk", "bold"))
+    console.print(table)
 
 
 def to_json(result: CheckResult) -> dict[str, Any]:

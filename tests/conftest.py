@@ -11,6 +11,7 @@ import pytest
 import respx
 from typer.testing import CliRunner
 
+from amlcheck.adapters import hypersync
 from amlcheck.cli import app
 from amlcheck.config import Ofac
 from amlcheck.core.address import tron_from_hex
@@ -44,6 +45,13 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     return home
+
+
+@pytest.fixture(autouse=True)
+def fresh_hypersync() -> None:
+    """HyperSync's budget and start blocks are shared by a whole process: each test starts clean."""
+    hypersync.BUDGET.renewed()
+    hypersync._START_BLOCKS.clear()
 
 
 @pytest.fixture(autouse=True)

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import httpx
 
-from amlcheck import adapters
+from amlcheck import adapters, vendor
 from amlcheck.config import Config, Secrets
 from amlcheck.core import engine
 from amlcheck.core.address import AddressError, parse
@@ -163,6 +163,7 @@ async def run(
             secrets=secrets,
             sleep=sleep,
             eagle_limiter=eagle,
+            two_hop=adapters.wants_two_hop(config, row.amount),
         )
         result = await engine.screen(
             row.address,
@@ -172,6 +173,7 @@ async def run(
             amount=row.amount,
             note=row.note,
             client=row.client,
+            then=vendor.stage(config, row.amount),
         )
         results.append(result)
         done(row, result)

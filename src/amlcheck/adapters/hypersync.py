@@ -6,7 +6,9 @@ limit and says where (`next_block`), so every read here goes on from there to it
 
 import asyncio
 import math
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -15,7 +17,7 @@ import httpx
 from pydantic import SecretStr
 
 from amlcheck.core.clock import from_timestamp
-from amlcheck.net import Sleep, request
+from amlcheck.net import RETRY_STATUSES, Sleep, request
 
 # keccak256("Transfer(address,address,uint256)"), the event of every ERC-20 and BEP-20 transfer.
 TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
@@ -99,6 +101,47 @@ def _following(page: dict[str, Any], block: int) -> int | None:
     return following
 
 
+class Budget:
+    """A token's HyperSync budget, from the x-ratelimit-* headers of its answers (V15): the units
+    left in the current one-minute window, what a query costs, and when the window resets.
+
+    One budget serves every client in the process, so a batch or a 2-hop walk waits for the next
+    window instead of being refused.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._remaining: int | None = None
+        self._cost = 1
+        self._reset_at = 0.0
+
+    def seen(self, headers: Mapping[str, str]) -> None:
+        try:
+            remaining = int(headers["x-ratelimit-remaining"])
+            reset = float(headers["x-ratelimit-reset"])
+        except (KeyError, ValueError):
+            return
+        self._remaining = remaining
+        self._reset_at = self._clock() + reset
+        with suppress(KeyError, ValueError):
+            self._cost = max(int(headers["x-ratelimit-cost"]), 1)
+
+    def wait(self) -> float:
+        """Seconds until a query fits: none while the window has room for one."""
+        if self._remaining is None or self._remaining >= self._cost:
+            return 0.0
+        return max(self._reset_at - self._clock(), 0.0)
+
+    def renewed(self) -> None:
+        """The window has reset: its count is unknown until the next answer."""
+        self._remaining = None
+
+
+BUDGET = Budget()
+# (url, hour) -> (the moment it was found for, its start block): good for any later moment
+_START_BLOCKS: dict[tuple[str, int], tuple[float, int]] = {}
+
+
 class HyperSync:
     def __init__(
         self,
@@ -107,27 +150,52 @@ class HyperSync:
         token: SecretStr,
         *,
         max_retry_after: float,
+        max_wait: float = 65.0,
         sleep: Sleep = asyncio.sleep,
+        budget: Budget = BUDGET,
     ) -> None:
         self._http = http
         self._url = url.rstrip("/")
         self._token = token
         self._max_retry_after = max_retry_after
+        self._max_wait = max_wait
         self._sleep = sleep
+        self._budget = budget
+
+    async def _send(self, method: str, path: str, body: dict[str, Any] | None) -> httpx.Response:
+        """One request, paced to the budget. A 429 is waited out, up to `max_wait` seconds (a
+        minute window, D33); a longer wait is an error, and so an INCOMPLETE result."""
+        for attempt in range(3):
+            wait = self._budget.wait()
+            if wait > self._max_wait:
+                raise HyperSyncError(
+                    f"HyperSync's budget for this minute is spent; it resets in {wait:.0f} s"
+                )
+            if wait:
+                await self._sleep(wait)
+                self._budget.renewed()
+            try:
+                response = await request(
+                    self._http,
+                    method,
+                    f"{self._url}{path}",
+                    json=body,
+                    headers={"Authorization": f"Bearer {self._token.get_secret_value()}"},
+                    max_retry_after=self._max_retry_after,
+                    retry_statuses=RETRY_STATUSES - {429},
+                    sleep=self._sleep,
+                )
+            except httpx.HTTPError as e:
+                raise HyperSyncError(f"could not reach HyperSync ({type(e).__name__})") from None
+            self._budget.seen(response.headers)
+            if response.status_code != 429:
+                return response
+            if not self._budget.wait():  # a refusal that says nothing of the window
+                await self._sleep(0.5 * 2**attempt)
+        raise HyperSyncError("HyperSync kept answering HTTP 429: too many requests")
 
     async def _call(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
-        try:
-            response = await request(
-                self._http,
-                method,
-                f"{self._url}{path}",
-                json=body,
-                headers={"Authorization": f"Bearer {self._token.get_secret_value()}"},
-                max_retry_after=self._max_retry_after,
-                sleep=self._sleep,
-            )
-        except httpx.HTTPError as e:
-            raise HyperSyncError(f"could not reach HyperSync ({type(e).__name__})") from None
+        response = await self._send(method, path, body)
         try:
             answer = response.json()
         except ValueError:
@@ -166,13 +234,25 @@ class HyperSync:
         return times[number]
 
     async def start_block(self, moment: datetime, head: int) -> int:
-        """A block at or before `moment`, and no more than a few minutes before it.
+        """A block at or before `moment`, and no more than about an hour before it.
 
         The chain's pace (seconds per block) near the head gives a first estimate. While the block
         estimated is still after `moment`, the pace near that block gives the next one, so a chain
         that used to be faster is still found in a step or two. One that used to be slower puts
         the estimate too early instead, and a step forward trims it.
         """
+        # Every read in the same hour starts from the same block: it is at or before any later
+        # moment, and reading at most an hour of blocks too many costs less than finding it again.
+        bucket = (self._url, int(moment.timestamp()) // 3600)
+        found = _START_BLOCKS.get(bucket)
+        if found is not None and moment.timestamp() >= found[0]:
+            return found[1]
+        block = await self._find_start(moment, head)
+        _START_BLOCKS.clear()
+        _START_BLOCKS[bucket] = (moment.timestamp(), block)
+        return block
+
+    async def _find_start(self, moment: datetime, head: int) -> int:
         target = moment.timestamp()
         block = head
         seen = await self.block_time(block)

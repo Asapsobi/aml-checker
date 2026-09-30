@@ -1,6 +1,6 @@
 # Phase 0 verification report
 
-> **Checked:** 2026-09-28, with V11–V14 added on 2026-09-29 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
+> **Checked:** 2026-09-28, with V11–V14 added on 2026-09-29 and V15 on 2026-09-30 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
 
 This report checks every item that PRD §6 marks **verify**, plus the provider facts that §2 and §11
 rely on. Each item says where it was checked, what was found and what it changes in the build.
@@ -423,10 +423,44 @@ None of these gives a complete 180-day history without an account:
 **What this changes:** the web page, the PDF export and the watchlist alerts are built on these
 (D24–D32).
 
+## V15. Checked while building Phase 4
+
+**Checked** on 2026-09-30.
+
+- **HyperSync's free plan is 30 queries a minute.** Every answer carries its budget:
+  - `x-ratelimit-limit: 30000, 30000;w=60` (units per 60-second window)
+  - `x-ratelimit-cost: 1000` (units per query)
+  - `x-ratelimit-remaining`, and `x-ratelimit-reset` (seconds)
+
+  On 2026-09-29 the same answers said `x-ratelimit-cost: 0`. A refused query is HTTP 429 with an
+  empty body and no `Retry-After`.
+- **A 2-hop walk broke that budget.** Its first live run, on `0xd5efbbd7…1e36`, had 6 of 7
+  counterparty reads refused with 429. Each read asked about 10 queries: the block at the start of
+  the lookback, and a whole-chain scan for first activity, which the walk does not use.
+- **After the fix, the same walk worked** (D33). It took about 70 seconds: 1 counterparty flagged
+  itself (R-EXP-01), 5 hubs and 1 read, with nothing flagged behind it. The graph drew it on the web
+  page in dark mode.
+- **Look-alike addresses.** Two of those hubs, `0x6990e7e9…bb3e4` and `0x6990b3b0…3b3e4`, differ
+  only in the middle, the pattern of address poisoning. Graph labels of 6 + 4 characters showed them
+  the same, so labels show 8 + 6.
+- **Graph colours.** Checked with the dataviz palette validator: the reference status colours
+  (critical `#d03b3b`, warning `#fab219`), the series blue and a neutral grey.
+  - Every pair stays apart under colour blindness: ΔE ≥ 9.9 in both light and dark.
+  - Normal-vision separation is ΔE ≥ 17.2.
+  - All clear 3:1 contrast on the dark surface. On the light surface, amber does not, by design;
+    the marks and the legend carry the meaning.
+
+**What this changes:**
+
+- HyperSync paces itself to its budget (D33).
+- The block at the start of the lookback is found once an hour.
+- The 2-hop reads skip the first-activity lookup.
+- Graph labels are longer.
+
 ## Decisions
 
 These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0,
-D6–D12 in Phase 1, D13–D23 in Phase 2 and D24–D32 in Phase 3.
+D6–D12 in Phase 1, D13–D23 in Phase 2, D24–D32 in Phase 3 and D33–D38 in Phase 4.
 
 | # | Decision | Why |
 |---|---|---|
@@ -462,6 +496,12 @@ D6–D12 in Phase 1, D13–D23 in Phase 2 and D24–D32 in Phase 3.
 | D30 | An export of a log that fails verification is still written. It says so, and the command exits 1 | The operator needs the data to investigate, and a script must not miss the failure |
 | D31 | The web page serves only the host names 127.0.0.1 and localhost, needs a start-up token on every POST, sends a strict Content-Security-Policy, and ships HTMX itself | Any page open in the operator's browser can send requests to 127.0.0.1 (DNS rebinding, cross-site requests) |
 | D32 | The PDF is set in Helvetica, which covers Latin scripts only | Notes or client names in other scripts may not show in the PDF. CSV and JSON keep them exactly |
+| D33 | The HyperSync client paces itself: it reads the budget from every answer and waits for the next window, for up to 65 seconds, rather than being refused. The budget is shared by the whole process. A longer wait is an error, and so INCOMPLETE | The free plan allows 30 queries a minute (V15). D8's 10-second cap would make every 2-hop walk fail |
+| D34 | The 2-hop walk reads the 20 largest counterparties. One flagged itself is left to R-EXP-01. One with more than 1,000 transfers is a hub: listed, not read. One that cannot be read makes the result INCOMPLETE | A bounded cost, and 2 hops through an exchange reach almost everyone |
+| D35 | R-EXP-03 fires when a counterparty received at least 1,000 USDT from one sanctioned or frozen wallet within the lookback, with flags from local data only (Q16) | The owner's answer to Q16, and no API quota spent on flags |
+| D36 | The 2-hop walk runs for `investigate`, for the web form's 2-hop box, and for checks of at least 10,000 USDT (Q15) | Everyday checks stay fast, and large amounts get the deeper look |
+| D37 | A vendor is a class named in `[vendor] adapter`, asked only for REVIEW results or amounts of at least `min_amount_usdt`. It adds attribution, is not required, and never changes the verdict (Q14, PRD Q3) | No vendor is paid for now. A paid one can be added without changing amlcheck |
+| D38 | The graph is SVG drawn by amlcheck, in the status palette, with a mark for every state and a legend. Labels are 8 + 6 characters. The file version is light; the web version follows the page | No outside code, a strict CSP, colour never alone, and look-alike addresses told apart (V15) |
 
 ## Open questions
 
@@ -482,6 +522,9 @@ Per PRD §0 rule 7, these are listed rather than guessed. Answers are recorded b
 | Q11 | How does the "allowlist for own/known wallets" in `labels.csv` (§14) work? | Phase 2 | Decided |
 | Q12 | How should `watch run` report a verdict that changed? | Phase 3 | Decided |
 | Q13 | The PRD asks for exports "for a client" (U5), but checks record no client. How should a check name its client? | Phase 3 | Decided |
+| Q14 | PRD §15 Q2 and Q3: which commercial attribution vendor, what budget, and above what amount must it be asked? | Phase 4 | Decided |
+| Q15 | When should the 2-hop walk run: on request, for large amounts, or on every check? | Phase 4 | Decided |
+| Q16 | What counts as 2-hop exposure (R-EXP-03's "threshold")? | Phase 4 | Decided |
 
 ### Answers
 
@@ -543,6 +586,15 @@ messaging service or email is involved, so no new account or key is needed.
 **Q13, decided 2026-09-29.** `check` and `batch` take `--client "name"` (a `client` column in a
 batch file), and `watch add` keeps one too. `audit list`, `audit export` and the web page's history
 filter by it, ignoring case (D24).
+
+**Q14 to Q16, decided 2026-09-29.** The owner accepted the recommended answers:
+
+- **Q14:** no vendor for now. Instead, a plug-in point swappable through config (D37). The amount
+  above which the vendor is always asked is `[vendor] min_amount_usdt`, 0 by default.
+- **Q15:** on request, and for checks of at least 10,000 USDT (D36).
+- **Q16:** a counterparty received at least 1,000 USDT from one sanctioned or frozen wallet within
+  the lookback (D35). A share of the money traced through the middleman was not chosen, since
+  money cannot really be traced dollar by dollar through a middleman.
 
 ## Phase 0 exit criteria
 

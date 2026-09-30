@@ -14,8 +14,9 @@
   <label>Amount (USDT) <input name="amount" value="{{ form.amount or '' }}" inputmode="decimal"></label>
   <label>Client <input name="client" value="{{ form.client or '' }}"></label>
   <label>Note <input name="note" value="{{ form.note or '' }}"></label>
+  <label class="tick"><input type="checkbox" name="two_hop" value="1" {% if form.two_hop %}checked{% endif %}> 2-hop walk (up to 2 minutes)</label>
   <button type="submit">Check</button>
-  <span id="working" class="htmx-indicator">Checking… this can take up to a minute.</span>
+  <span id="working" class="htmx-indicator">Checking… this can take a minute, or two with the 2-hop walk.</span>
 </form>
 <div id="result">{% include "_result.html" %}</div>
 {% endblock %}

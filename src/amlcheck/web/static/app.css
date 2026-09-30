@@ -26,3 +26,17 @@ th, td { text-align: left; vertical-align: top; padding: .35rem .6rem .35rem 0; 
 .key { color: var(--muted); }
 .htmx-indicator { display: none; color: var(--muted); }
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
+label.tick { flex-direction: row; align-items: center; gap: .4rem; }
+.network { overflow-x: auto; }
+.network svg { max-width: 100%; height: auto; }
+/* The graph carries light colours as attributes; here it follows the page, light or dark. */
+.walk-graph .label { stroke: Canvas; fill: GrayText; }
+.walk-graph .legend { fill: CanvasText; }
+.walk-graph .node.read circle, .walk-graph .node.flagged circle, .walk-graph .node.target circle { stroke: Canvas; }
+.walk-graph .node.hub circle { fill: Canvas; }
+@media (prefers-color-scheme: dark) {
+  .walk-graph .node.target circle { fill: #3987e5; }
+  .walk-graph .edge:not(.flagged) { stroke: #5c5b57; }
+  .walk-graph .node.hub circle { stroke: #c3c2b7; }
+  .walk-graph .node.hub .mark { fill: #c3c2b7; }
+}

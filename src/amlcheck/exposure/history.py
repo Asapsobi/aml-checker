@@ -30,7 +30,7 @@ class History:
     transfers: tuple[Transfer, ...]  # newest first
     since: datetime
     complete: bool  # False when older transfers in the window were left unread
-    first_activity: datetime | None  # None: never active on chain
+    first_activity: datetime | None  # None: never active, or not asked for (first_activity=False)
     zero_value: int = 0  # 0 USDT transfers left out
 
     def to_json(self) -> dict[str, Any]:
@@ -62,7 +62,12 @@ class History:
 class HistorySource(Protocol):
     chain: Chain
 
-    async def fetch(self, address: str, since: datetime, limit: int) -> History: ...
+    async def fetch(
+        self, address: str, since: datetime, limit: int, *, first_activity: bool = True
+    ) -> History:
+        """The transfers since `since`, at most `limit`, and, unless told not to, when the address
+        was first active: that takes more requests, and the 2-hop walk does not need it."""
+        ...
 
 
 class TronHistory:
@@ -74,12 +79,21 @@ class TronHistory:
         self._grid = grid
         self._contract = contract
 
-    async def fetch(self, address: str, since: datetime, limit: int) -> History:
-        (rows, truncated), created, first = await asyncio.gather(
-            self._grid.token_transfers(address, self._contract, since, limit),
-            self._grid.created(address),
-            self._grid.first_token_transfer(address, self._contract),
-        )
+    async def fetch(
+        self, address: str, since: datetime, limit: int, *, first_activity: bool = True
+    ) -> History:
+        read = self._grid.token_transfers(address, self._contract, since, limit)
+        start = None
+        if first_activity:
+            (rows, truncated), created, first = await asyncio.gather(
+                read,
+                self._grid.created(address),
+                self._grid.first_token_transfer(address, self._contract),
+            )
+            starts = [moment for moment in (created, first) if moment is not None]
+            start = min(starts) if starts else None
+        else:
+            rows, truncated = await read
         transfers = []
         zero_value = 0
         for row in rows:
@@ -92,10 +106,7 @@ class TronHistory:
                 continue
             time = from_timestamp(row["block_timestamp"] / 1000)
             transfers.append(Transfer(row["transaction_id"], time, row["from"], row["to"], amount))
-        starts = [moment for moment in (created, first) if moment is not None]
-        return History(
-            tuple(transfers), since, not truncated, min(starts) if starts else None, zero_value
-        )
+        return History(tuple(transfers), since, not truncated, start, zero_value)
 
 
 class BscHistory:
@@ -109,11 +120,17 @@ class BscHistory:
         self._hypersync = hypersync
         self._contract = contract.lower()
 
-    async def fetch(self, address: str, since: datetime, limit: int) -> History:
-        (rows, truncated), first = await asyncio.gather(
-            self._hypersync.token_transfers(address, self._contract, since, limit),
-            self._hypersync.first_activity(address),
-        )
+    async def fetch(
+        self, address: str, since: datetime, limit: int, *, first_activity: bool = True
+    ) -> History:
+        read = self._hypersync.token_transfers(address, self._contract, since, limit)
+        first = None
+        if first_activity:
+            (rows, truncated), first = await asyncio.gather(
+                read, self._hypersync.first_activity(address)
+            )
+        else:
+            rows, truncated = await read
         transfers = []
         zero_value = 0
         for row in rows:

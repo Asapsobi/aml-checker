@@ -14,7 +14,7 @@ from amlcheck.adapters.base import SourceAdapter, failed
 from amlcheck.config import Config
 from amlcheck.core import audit, rules
 from amlcheck.core.clock import utcnow
-from amlcheck.core.models import Address, CheckResult, SourceResult
+from amlcheck.core.models import Address, CheckResult, Finding, SourceResult, Verdict
 from amlcheck.core.verdict import decide
 
 log = logging.getLogger(__name__)
@@ -22,11 +22,13 @@ log = logging.getLogger(__name__)
 
 async def run_source(source: SourceAdapter, address: Address, timeout: float) -> SourceResult:
     """A source that breaks or hangs becomes an `error`, and so an INCOMPLETE verdict: a failure
-    must never crash the check or pass as a clean result."""
+    must never crash the check or pass as a clean result. A source that needs longer than the
+    default says so in its own `timeout` (the 2-hop walk)."""
+    limit = getattr(source, "timeout", None) or timeout
     try:
-        return await asyncio.wait_for(source.check(address), timeout)
+        return await asyncio.wait_for(source.check(address), limit)
     except TimeoutError:
-        return failed(source, f"no answer within {timeout:g} seconds")
+        return failed(source, f"no answer within {limit:g} seconds")
     except Exception as e:
         log.exception("source %s failed", source.source)
         return failed(source, f"{type(e).__name__}: {e}")
@@ -43,17 +45,29 @@ async def screen(
     client: str | None = None,
     timeout: float = 60.0,
     now: Callable[[], datetime] = utcnow,
+    then: Callable[[Verdict], Sequence[SourceAdapter]] | None = None,
 ) -> CheckResult:
+    """Run every source at once, apply the rules, and write the record. `then` names sources to
+    run once the verdict is known: the paid vendor, asked only for some verdicts (PRD Phase 4)."""
     results = tuple(await asyncio.gather(*(run_source(s, address, timeout) for s in sources)))
-    observed = now()
     overrides = {str(rule): str(severity) for rule, severity in config.rules.severity.items()}
-    findings = rules.with_overrides((f for r in results for f in r.findings), overrides)
-    findings += rules.data_gaps(results, observed)
+
+    def judged(results: tuple[SourceResult, ...]) -> tuple[list[Finding], Verdict, datetime]:
+        observed = now()
+        findings = rules.with_overrides((f for r in results for f in r.findings), overrides)
+        findings += rules.data_gaps(results, observed)
+        return findings, decide(findings), observed
+
+    findings, verdict, observed = judged(results)
+    later = then(verdict) if then else ()
+    if later:
+        results += tuple(await asyncio.gather(*(run_source(s, address, timeout) for s in later)))
+        findings, verdict, observed = judged(results)
     result = CheckResult(
         check_id=str(uuid.uuid4()),
         created_at=observed,
         address=address,
-        verdict=decide(findings),
+        verdict=verdict,
         sources=results,
         findings=tuple(findings),
         tool_version=__version__,
