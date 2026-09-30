@@ -1,6 +1,6 @@
 [project]
 name = "amlcheck"
-version = "0.1.0"
+version = "0.5.0"
 description = "Local AML screening for USDT addresses on TRON and BNB Smart Chain"
 readme = "README.md"
 requires-python = ">=3.12"
