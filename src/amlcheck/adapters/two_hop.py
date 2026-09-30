@@ -126,7 +126,8 @@ class TwoHopAdapter:
                     return Reach(other, NOT_REACHED, "the time budget ran out")
                 try:
                     theirs = await asyncio.wait_for(
-                        reader.read(other, self._settings.max_transfers), left
+                        reader.read(other, self._settings.max_transfers, first_activity=False),
+                        left,
                     )
                 except TimeoutError:
                     return Reach(other, NOT_REACHED, "the time budget ran out")

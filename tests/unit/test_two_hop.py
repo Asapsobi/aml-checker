@@ -52,8 +52,10 @@ class Chain_:
             self.histories.setdefault(party, []).append(t)
         return t
 
-    async def fetch(self, address: str, since: datetime, limit: int) -> History:
-        self.calls.append(address)
+    async def fetch(
+        self, address: str, since: datetime, limit: int, *, first_activity: bool = True
+    ) -> History:
+        self.calls.append(address if first_activity else f"{address} (transfers only)")
         if address in self.broken:
             raise HyperSyncError("HyperSync answered HTTP 503")
         if address in self.slow:
@@ -155,7 +157,8 @@ async def test_only_the_largest_counterparties_are_read(
     for n, amount in enumerate(("50", "5000", "10", "700", "1")):
         chain.pay(f"0x{n + 3:040x}", ME, amount)
     result = await check(conn, chain, counterparties=2)
-    assert chain.calls == [ME, f"0x{4:040x}", f"0x{6:040x}"]
+    # The 2-hop reads skip the first-activity lookup: the walk needs only the transfers.
+    assert chain.calls == [ME, f"0x{4:040x} (transfers only)", f"0x{6:040x} (transfers only)"]
     assert (result.evidence_meta["scope"], result.evidence_meta["counterparties"]) == (2, 5)
     assert result.as_of_text == "2 of 5 counterparties"
 
@@ -211,10 +214,12 @@ async def test_a_reader_that_gives_up_does_not_stop_the_others(
     started = asyncio.Event()
     original = chain.fetch
 
-    async def slow_fetch(address: str, since: datetime, limit: int) -> History:
+    async def slow_fetch(
+        address: str, since: datetime, limit: int, *, first_activity: bool = True
+    ) -> History:
         started.set()
         await asyncio.sleep(0.05)
-        return await original(address, since, limit)
+        return await original(address, since, limit, first_activity=first_activity)
 
     chain.fetch = slow_fetch  # type: ignore[method-assign]
     reader = HistoryReader(chain, ResponseCache(conn, 0, lambda: NOW), 180, lambda: NOW)
