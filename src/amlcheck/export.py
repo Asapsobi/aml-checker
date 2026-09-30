@@ -193,7 +193,8 @@ def to_pdf(
 
     if verification.intact:
         integrity = (
-            f"Audit log intact at export: {verification.records:,} records, latest hash"
+            f"Audit log intact at export: {exposure.plural(verification.records, 'record')},"
+            " latest hash"
             f" {verification.head}."
         )
     else:
