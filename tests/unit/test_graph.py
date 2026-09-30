@@ -99,3 +99,11 @@ def test_an_empty_walk_still_draws() -> None:
     network = {"nodes": [{"id": ME, "ring": 0, "state": "target", "flags": []}], "edges": []}
     root = ElementTree.fromstring(graph.to_svg(network, "bsc"))
     assert next(g.get("class") for g in root.iter(f"{SVG}g")) == "node target"
+
+
+def test_look_alike_addresses_get_different_labels() -> None:
+    """Seen live on 2026-09-30: two hubs that differ only in the middle (address poisoning)."""
+    first = "0x6990e7e90ab50c12111f99b84183d3fe298bb3e4"
+    second = "0x6990b3b03b9ed21a69440e0dfc0ce5e84dd3b3e4"
+    assert graph.short(first) != graph.short(second)
+    assert graph.short(first) == "0x6990e7…8bb3e4"

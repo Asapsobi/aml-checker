@@ -87,7 +87,9 @@ def walk_rows(network: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def short(address: str) -> str:
-    return f"{address[:6]}…{address[-4:]}" if len(address) > 12 else address
+    """A label long enough to tell look-alike addresses apart: address poisoning copies the first
+    and last few characters, so four of each are not enough (seen live on 2026-09-30)."""
+    return f"{address[:8]}…{address[-6:]}" if len(address) > 16 else address
 
 
 def _usdt(text: str) -> str:
