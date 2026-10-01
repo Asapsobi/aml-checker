@@ -8,6 +8,7 @@ It combines sanctions lists, stablecoin issuer freeze/seize history, on-chain ex
 
 ## Docs
 
+- **[v1 spec](docs/v1/PRD.md)** — counterparty intelligence: source-of-funds tracing, address classification, risk score, cases and inbound monitoring (phases 6–12). With [methodology](docs/v1/METHODOLOGY.md), [architecture](docs/v1/ARCHITECTURE.md), [data model](docs/v1/DATA_MODEL.md), [roadmap](docs/v1/ROADMAP.md), [acceptance tests](docs/v1/ACCEPTANCE.md). **AI coding agents: start with [AGENTS.md](AGENTS.md).**
 - [PRD & Roadmap](docs/PRD.md) — scope, verdict model, data sources, architecture, phased roadmap and acceptance tests. **AI coding agents: read §0 first.**
 - [Verification report](docs/verification.md) — every data source checked against the live service, the decisions taken, and the open questions.
 - [Acceptance tests](docs/acceptance.md) — where each PRD acceptance test is covered, and the live results of each phase.

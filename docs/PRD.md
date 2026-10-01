@@ -4,6 +4,7 @@
 > **Owner:** Sobi
 > **Status:** Draft v0.1 — 2026-09-28
 > **Audience:** AI coding agent (primary), internal team (secondary)
+> **Superseded for new work by [docs/v1/PRD.md](v1/PRD.md).** This file stays the spec of 0.1–0.5.x, and its §0 rules still apply.
 
 ---
 
