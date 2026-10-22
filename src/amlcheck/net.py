@@ -15,6 +15,27 @@ from amlcheck import __version__
 USER_AGENT = f"amlcheck/{__version__}"
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 Sleep = Callable[[float], Awaitable[None]]
+# Network failures in words. A timeout usually comes with no message at all, which once left the
+# daily sync's log saying only "OFAC SDN: . The previous list stays in use." (V22).
+FAILURES: tuple[tuple[type[httpx.HTTPError], str], ...] = (
+    (httpx.ConnectTimeout, "the connection timed out"),
+    (httpx.ReadTimeout, "the server stopped sending data"),
+    (httpx.WriteTimeout, "the request could not be sent in time"),
+    (httpx.PoolTimeout, "no connection was free in time"),
+    (httpx.ConnectError, "could not connect"),
+    (httpx.RemoteProtocolError, "the connection broke off"),
+    (httpx.ReadError, "the connection was lost while reading"),
+)
+
+
+def describe(error: BaseException) -> str:
+    """What went wrong, never an empty string: the plain words for a network failure, with its
+    type and message, or the error's own message, or its type."""
+    text = str(error).strip()
+    for kind, words in FAILURES:
+        if isinstance(error, kind):
+            return f"{words} ({type(error).__name__}{': ' + text if text else ''})"
+    return text or type(error).__name__
 
 
 def new_client(timeout: float) -> httpx.AsyncClient:

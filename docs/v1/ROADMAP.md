@@ -8,7 +8,7 @@
 
 - [ ] `uv run pytest`, `ruff check`, `ruff format --check`, `mypy` green; CI green on all 5 jobs
 - [ ] A 0.5.1 database migrates and `amlcheck audit verify` passes before and after
-- [ ] `docs/verification.md`: new V-items, decisions (D50+), questions (Q23+) with status
+- [ ] `docs/verification.md`: new V-items, decisions (D51+), questions (Q23+) with status
 - [ ] `docs/acceptance.md`: the phase's AT-V1 tests mapped to test names, plus live results with dates
 - [ ] README updated for every new command; `config.example.toml` for every new key
 - [ ] Version bumped in `pyproject.toml` (and `uv.lock`), PR merged by the owner, tag `v0.N.0`, GitHub release

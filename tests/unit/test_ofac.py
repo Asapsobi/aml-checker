@@ -95,14 +95,86 @@ async def test_sync_follows_the_redirect_and_keeps_the_hash(
     assert ofac.latest(conn) == snapshot
 
 
+class Pauses:
+    """Records the pauses asked for instead of pausing."""
+
+    def __init__(self) -> None:
+        self.calls: list[float] = []
+
+    async def __call__(self, seconds: float) -> None:
+        self.calls.append(seconds)
+
+
+def redirected(network: respx.MockRouter, *answers: httpx.Response | Exception) -> respx.Route:
+    """The Sanctions List Service redirecting to a signed S3 link, as it does (V1), with the S3
+    link giving `answers` in turn."""
+    network.get(SDN_URL).respond(302, headers={"Location": "https://s3.test/SDN.XML"})
+    return network.get("https://s3.test/SDN.XML").mock(side_effect=list(answers))
+
+
 async def test_a_failed_download_keeps_the_previous_list(
     conn: sqlite3.Connection, listed: ofac.Snapshot, network: respx.MockRouter
 ) -> None:
     network.get(SDN_URL).respond(500)
+    pauses = Pauses()
     async with httpx.AsyncClient() as http:
-        with pytest.raises(ofac.SyncError, match="HTTP 500"):
-            await ofac.sync(conn, http, SDN_URL)
+        with pytest.raises(ofac.SyncError, match=r"failed 3 times.*OFAC answered HTTP 500"):
+            await ofac.sync(conn, http, SDN_URL, sleep=pauses)
     assert ofac.latest(conn) == listed
+    assert pauses.calls == [5.0, 15.0]
+
+
+async def test_a_stalled_download_is_retried_from_the_start(
+    conn: sqlite3.Connection, network: respx.MockRouter
+) -> None:
+    """V22: on the owner's line, most daily downloads stalled for 30 seconds and failed."""
+    s3 = redirected(
+        network, httpx.ReadTimeout(""), httpx.Response(200, content=SAMPLE.read_bytes())
+    )
+    pauses = Pauses()
+    async with httpx.AsyncClient(follow_redirects=True) as http:
+        snapshot = await ofac.sync(conn, http, SDN_URL, sleep=pauses, now=lambda: NOW)
+    assert snapshot.address_count == 65
+    assert s3.call_count == 2
+    assert network.routes[0].call_count == 2  # a fresh signed link for each attempt
+    assert pauses.calls == [5.0]
+
+
+async def test_three_stalls_keep_the_previous_list_and_say_why(
+    conn: sqlite3.Connection, listed: ofac.Snapshot, network: respx.MockRouter
+) -> None:
+    """A timeout has no message of its own: the reason must not come out empty (V22)."""
+    redirected(network, *(httpx.ReadTimeout("") for _ in range(3)))
+    async with httpx.AsyncClient(follow_redirects=True) as http:
+        with pytest.raises(ofac.SyncError) as failed:
+            await ofac.sync(conn, http, SDN_URL, sleep=Pauses())
+    assert str(failed.value) == (
+        "the download failed 3 times, the last time because the server stopped sending data"
+        " (ReadTimeout)"
+    )
+    assert ofac.latest(conn) == listed
+
+
+async def test_a_refusal_is_not_retried(
+    conn: sqlite3.Connection, network: respx.MockRouter
+) -> None:
+    s3 = redirected(network, httpx.Response(403))
+    pauses = Pauses()
+    async with httpx.AsyncClient(follow_redirects=True) as http:
+        with pytest.raises(ofac.SyncError, match=r"^OFAC answered HTTP 403$"):
+            await ofac.sync(conn, http, SDN_URL, sleep=pauses)
+    assert (s3.call_count, pauses.calls) == (1, [])
+
+
+async def test_the_download_may_wait_longer_than_an_api_call(
+    conn: sqlite3.Connection, network: respx.MockRouter
+) -> None:
+    """D50: [ofac] read_timeout_seconds for the 28 MiB file; API calls keep [network]'s."""
+    s3 = redirected(network, httpx.Response(200, content=SAMPLE.read_bytes()))
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as http:
+        await ofac.sync(conn, http, SDN_URL, read_timeout=Ofac().read_timeout_seconds)
+    timeout = s3.calls.last.request.extensions["timeout"]
+    assert (timeout["read"], timeout["connect"]) == (120, 30)
 
 
 def test_a_list_that_lost_more_than_a_fifth_is_refused(
@@ -168,3 +240,16 @@ async def test_health_reports_the_age_and_size(
     assert health.status is SourceStatus.ok
     assert "3.0 hours ago" in health.detail
     assert "65 addresses" in health.detail
+    assert health.warnings == ()
+
+
+async def test_health_warns_half_way_to_stale(
+    conn: sqlite3.Connection, listed: ofac.Snapshot
+) -> None:
+    """V22: a sync that keeps failing shows in `status` while checks still work."""
+    ageing = await adapter(conn, now=NOW + timedelta(hours=25)).health()
+    assert ageing.status is SourceStatus.ok
+    [warning] = ageing.warnings
+    assert warning.startswith("the list is 25 hours old, and checks become INCOMPLETE at 48")
+    stale = await adapter(conn, now=NOW + timedelta(hours=49)).health()
+    assert (stale.status, stale.warnings) == (SourceStatus.stale, ())

@@ -3,8 +3,12 @@
 An address matches on the address alone, whatever currency label OFAC gave it: the labels are
 unreliable (docs/verification.md, V1). The list's age counts from its last successful download,
 not from OFAC's publish date, because OFAC does not publish every day (Q3).
+
+The download is about 28 MiB, so on a slow or unsteady line it can stall or break off. It is
+retried from the start, and it may wait longer for data than an API call does (V22, D50).
 """
 
+import asyncio
 import hashlib
 import logging
 import sqlite3
@@ -22,11 +26,14 @@ from amlcheck.core import rules
 from amlcheck.core.address import EVM_FORMAT, TRON_FORMAT, AddressError, parse
 from amlcheck.core.clock import from_iso, iso, utcnow
 from amlcheck.core.models import Address, Chain, SourceHealth, SourceResult, SourceStatus
+from amlcheck.net import Sleep, describe
 
 SOURCE = "ofac_sdn"
 LABEL = "OFAC SDN"
 ADDRESS_TYPE = "Digital Currency Address - "
 MAX_DROP = 0.2  # PRD §14: a new list may not lose more than 20% of its entries or addresses
+ATTEMPTS = 3  # downloads in all, before the previous list stays in use (V22)
+RETRY_WAITS = (5.0, 15.0)  # seconds before the second and the third attempt
 
 Progress = Callable[[int, int | None], None]
 log = logging.getLogger(__name__)
@@ -34,6 +41,10 @@ log = logging.getLogger(__name__)
 
 class SyncError(Exception):
     """The download or its contents cannot be trusted. The previous list stays in use."""
+
+
+class _ServerTrouble(SyncError):
+    """An HTTP 5xx: the service may well answer the next attempt."""
 
 
 @dataclass(frozen=True)
@@ -117,14 +128,47 @@ def normalize_listed(value: str, entry_id: str = "") -> tuple[str, str | None]:
 
 
 async def download(
-    http: httpx.AsyncClient, url: str, progress: Progress | None = None
+    http: httpx.AsyncClient,
+    url: str,
+    progress: Progress | None = None,
+    *,
+    read_timeout: float | None = None,
+    attempts: int = ATTEMPTS,
+    sleep: Sleep = asyncio.sleep,
 ) -> tuple[SdnList, str]:
-    """Stream the list to a temporary file, hashing it on the way, then parse it."""
+    """Stream the list to a temporary file, hashing it on the way, then parse it.
+
+    A stall, a broken connection or an HTTP 5xx is retried from the start, up to `attempts`
+    downloads in all. Each one asks the Sanctions List Service again, since it redirects to a
+    signed link that expires. `read_timeout` is how long to wait for the next piece of the file.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return await _download_once(http, url, progress, read_timeout)
+        except (httpx.TransportError, _ServerTrouble) as e:
+            if attempt == attempts:
+                raise SyncError(
+                    f"the download failed {attempts} times, the last time because {describe(e)}"
+                ) from e
+            log.warning("OFAC download %d of %d failed: %s", attempt, attempts, describe(e))
+            await sleep(RETRY_WAITS[min(attempt, len(RETRY_WAITS)) - 1])
+    raise AssertionError("unreachable: every attempt returns or raises")
+
+
+async def _download_once(
+    http: httpx.AsyncClient, url: str, progress: Progress | None, read_timeout: float | None
+) -> tuple[SdnList, str]:
+    timeout = http.timeout
+    if read_timeout is not None:
+        timeout = httpx.Timeout(
+            connect=timeout.connect, read=read_timeout, write=timeout.write, pool=timeout.pool
+        )
     digest = hashlib.sha256()
     with tempfile.TemporaryFile() as file:
-        async with http.stream("GET", url) as response:
+        async with http.stream("GET", url, timeout=timeout) as response:
             if response.status_code != 200:
-                raise SyncError(f"OFAC answered HTTP {response.status_code}")
+                trouble = _ServerTrouble if response.status_code >= 500 else SyncError
+                raise trouble(f"OFAC answered HTTP {response.status_code}")
             length = response.headers.get("Content-Length")
             total = int(length) if length else None
             done = 0
@@ -211,8 +255,11 @@ async def sync(
     url: str,
     progress: Progress | None = None,
     now: Callable[[], datetime] = utcnow,
+    *,
+    read_timeout: float | None = None,
+    sleep: Sleep = asyncio.sleep,
 ) -> Snapshot:
-    new, sha256 = await download(http, url, progress)
+    new, sha256 = await download(http, url, progress, read_timeout=read_timeout, sleep=sleep)
     return store(conn, new, sha256, now())
 
 
@@ -299,10 +346,19 @@ class OfacAdapter:
             )
         age = self._now() - snapshot.fetched_at
         status = SourceStatus.stale if age > self._max_age else SourceStatus.ok
+        warnings: tuple[str, ...] = ()
+        if status is SourceStatus.ok and age > self._max_age / 2:
+            # Half-way to stale: say so while checks still work, so a failing sync is noticed (V22).
+            warnings = (
+                f"the list is {age.total_seconds() / 3600:.0f} hours old, and checks become"
+                f" INCOMPLETE at {self._max_age.total_seconds() / 3600:.0f}: run `amlcheck sync"
+                " sanctions`, and make sure the scheduled sync works",
+            )
         return SourceHealth(
             SOURCE,
             LABEL,
             status,
             f"list of {snapshot.published}, downloaded {age.total_seconds() / 3600:.1f} hours ago,"
             f" {snapshot.address_count:,} addresses on {snapshot.record_count:,} entries",
+            warnings,
         )

@@ -39,6 +39,7 @@ from amlcheck.exposure.walker import (
     flags,
     transfer_evidence,
 )
+from amlcheck.net import describe
 
 SOURCE = "exposure_2hop"
 LABEL = "Exposure (2-hop)"
@@ -107,7 +108,9 @@ class TwoHopAdapter:
         try:
             history = await reader.read(me, self._exposure.max_transfers)
         except HISTORY_ERRORS as e:
-            return self._result(SourceStatus.error, f"the transfer history could not be read: {e}")
+            return self._result(
+                SourceStatus.error, f"the transfer history could not be read: {describe(e)}"
+            )
         parties = counterparties(me, history.transfers)
         direct = {
             a: [f for f in found if f.kind in RISK]
@@ -132,7 +135,7 @@ class TwoHopAdapter:
                 except TimeoutError:
                     return Reach(other, NOT_REACHED, "the time budget ran out")
                 except HISTORY_ERRORS as e:
-                    return Reach(other, FAILED, str(e))
+                    return Reach(other, FAILED, describe(e))
             if not theirs.complete:
                 cap = self._settings.max_transfers
                 return Reach(other, HUB, f"more than {cap:,} transfers: a hub, not read")

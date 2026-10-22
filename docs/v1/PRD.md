@@ -2,7 +2,7 @@
 
 > **Owner:** Sobi
 > **Status:** v1 draft — 2026-10-01
-> **Builds on:** amlcheck 0.5.1 ([docs/PRD.md](../PRD.md), phases 0–5, decisions D1–D49)
+> **Builds on:** amlcheck 0.5.1 ([docs/PRD.md](../PRD.md), phases 0–5, decisions D1–D49; 0.5.2 adds D50)
 > **Audience:** AI coding agent (primary), owner review (secondary)
 > **Read with:** [METHODOLOGY.md](METHODOLOGY.md) · [ARCHITECTURE.md](ARCHITECTURE.md) ·
 > [DATA_MODEL.md](DATA_MODEL.md) · [ROADMAP.md](ROADMAP.md) · [ACCEPTANCE.md](ACCEPTANCE.md) ·
@@ -16,14 +16,14 @@ Every rule in [docs/PRD.md §0](../PRD.md) still applies. v1 adds these:
 
 | # | Rule |
 |---|------|
-| 8 | **0.5.1 is the baseline, not a draft.** Extend it. Don't rewrite working modules, rename rule IDs, change the JSON contract's existing fields, or reverse a decision D1–D49 without listing it as a question first. |
+| 8 | **0.5.1 is the baseline, not a draft.** Extend it. Don't rewrite working modules, rename rule IDs, change the JSON contract's existing fields, or reverse a decision D1–D50 without listing it as a question first. |
 | 9 | **Old audit records must keep verifying.** A new hashed field is hashed only when set (the D24 pattern). Every phase's tests include a database written by 0.5.1. |
 | 10 | **Inferred is not fact.** A classification the tool computed never produces `BLOCK`, is always shown as *inferred* with its confidence, and never overrides a list or an operator label. |
 | 11 | **Pruning is coverage, failure is a gap.** A trace that leaves a branch unread *by design* (limits in config) reports it as untraced coverage. A branch that *should* have been read and couldn't be (error, time budget) makes the result `INCOMPLETE`. Never mix the two. |
 | 12 | **Deterministic.** The same cached data and config give the same trace, classifications and score. Every sort has a defined tie-break (by address). |
 | 13 | **Licences.** Eagle Virtual answers are never stored beyond the 15-minute cache (D46) and never become labels. No third-party label list is bundled or imported by default until its licence is verified and recorded in `docs/verification.md`. |
 | 14 | **One phase, one release** (D49): branch `phase-N-<slug>`, PR, CI green, owner review, merge, tag `v0.N.0`. Phase 12 ships `v1.0.0`. |
-| 15 | Record new facts as **V17+**, decisions as **D50+**, questions as **Q23+** in `docs/verification.md`, and live results in `docs/acceptance.md`, exactly as phases 0–5 did. |
+| 15 | Record new facts as **V17+** (V17–V21 as named in §6; V22 is the 0.5.2 OFAC fix, so new ones start at V23), decisions as **D51+** (D50 is the 0.5.2 fix), questions as **Q23+** in `docs/verification.md`, and live results in `docs/acceptance.md`, exactly as phases 0–5 did. |
 
 ---
 

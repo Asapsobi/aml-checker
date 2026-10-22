@@ -272,7 +272,9 @@ async def test_a_network_failure_is_reported(network: respx.MockRouter) -> None:
     network.post(f"{HYPERSYNC}/query").mock(side_effect=httpx.ConnectError("no route"))
     with pytest.raises(HyperSyncError) as failed:
         await fetch(ME)
-    assert str(failed.value) == "could not reach HyperSync (ConnectError)"
+    assert str(failed.value).startswith(
+        "could not reach HyperSync: could not connect (ConnectError"
+    )
     assert failed.value.__cause__ is None
 
 
