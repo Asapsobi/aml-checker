@@ -59,7 +59,7 @@ uv run amlcheck audit list --from 2026-09-01 --verdict block --client "acme ltd"
 uv run amlcheck audit verify
 ```
 
-Run `amlcheck sync sanctions` every day: a list more than 48 hours old makes every result INCOMPLETE. The TRON blacklist index refreshes itself on every check.
+Run `amlcheck sync` every 6 hours ([docs/scheduling.md](docs/scheduling.md) sets it up): a sanctions list more than 48 hours old makes every result INCOMPLETE, and `status` warns from 24 hours. The TRON blacklist index refreshes itself on every check.
 
 ### Many addresses at once
 

@@ -92,3 +92,56 @@ Run `crontab -e` and add a line like this one, with the path of this project:
 
 cron skips a run while the machine is off or asleep. There are no desktop notifications on Linux,
 so check the log, or act on the exit status 6 in a script of your own.
+
+## Keeping the data fresh
+
+Run `amlcheck sync` every 6 hours, even without a watchlist. A sanctions list older than 48 hours
+makes every check INCOMPLETE. The OFAC file is about 28 MiB, and on a slow line a download can fail
+(V22). Four tries a day leave plenty of room before the list goes stale. Each check refreshes the
+TRON index by itself.
+
+**macOS.** Save this as `~/Library/LaunchAgents/com.amlcheck.sync.plist`, with your user name in the
+paths. It runs the installed `amlcheck` at 03:00, 09:00, 15:00 and 21:00, and at each login. A time
+missed while the Mac sleeps runs when it wakes:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.amlcheck.sync</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/you</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/you/.local/bin/amlcheck</string>
+        <string>sync</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/you/.amlcheck/logs/sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/you/.amlcheck/logs/sync.log</string>
+</dict>
+</plist>
+```
+
+Load it with `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.amlcheck.sync.plist`,
+and stop it with `launchctl bootout gui/$(id -u)/com.amlcheck.sync`. Don't use launchd's
+`StartInterval` for this: it skips a run that falls while the Mac sleeps.
+
+**Linux.** With cron, use `0 */6 * * * $HOME/.local/bin/amlcheck sync >> $HOME/.amlcheck/logs/sync.log 2>&1`.
+On a server, use the systemd timer in [server.md](server.md).
+
+`amlcheck status` warns once the list is more than 24 hours old, while checks still work. If the
+warning stays, read `~/.amlcheck/logs/sync.log`: each run ends with the list it got or the reason it
+failed.

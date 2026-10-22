@@ -1,6 +1,6 @@
 # Phase 0 verification report
 
-> **Checked:** 2026-09-28, with V11–V14 added on 2026-09-29 and V15–V16 on 2026-09-30 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
+> **Checked:** 2026-09-28, with V11–V14 added on 2026-09-29, V15–V16 on 2026-09-30 and V22 on 2026-10-22 · **By:** AI coding agent, for review by Sobi · **Against:** PRD v0.1
 
 This report checks every item that PRD §6 marks **verify**, plus the provider facts that §2 and §11
 rely on. Each item says where it was checked, what was found and what it changes in the build.
@@ -509,6 +509,31 @@ calls. Rotation is tested with mocks built only from the words above (D40).
 - The API follows the draft (D41).
 - amlcheck installs as a tool from GitHub (D44).
 
+## V22. The OFAC download on the owner's line
+
+**Checked** on 2026-10-22, after release 0.5.1. V17–V21 are reserved for the v1 checks named in
+`docs/v1/PRD.md`, so this item takes the next free number.
+
+- **Most scheduled downloads failed.** The owner's Mac has run `amlcheck sync` daily since
+  2026-09-30. Up to 2026-10-22 its log shows 26 OFAC downloads: 9 succeeded and 17 failed.
+- **The failures gave no reason.** Each one logged `OFAC SDN: . The previous list stays in use.`
+- **So the list went stale.** The last success was on 2026-10-18. By 2026-10-22 the list was 94.7
+  hours old, and every check came out INCOMPLETE, as designed (PRD §0 rule 4).
+- **The cause, reproduced:** a download that stalls mid-file for longer than the 30-second read
+  timeout raises `httpx.ReadTimeout`, and its message is empty.
+  - The download had a single attempt. Every other request goes through `net.request`, which
+    retries.
+  - It used the same 30-second timeouts as an API call, for a file of about 28 MiB.
+- **The file is slow on this line.** The same day:
+  - a sync of a new scratch home failed once, then succeeded at the second try, in 1 minute 37
+    seconds
+  - a sync of the owner's home succeeded at once
+  - the fixed code downloaded the list at once, in 1 minute 28 seconds
+- **Other sources had the same blank text.** Eagle Virtual, TronGrid and HyperSync showed network
+  errors through their message too, so a timeout there would also have read as nothing.
+
+**What this changes:** D50.
+
 ## Decisions
 
 These are easy to reverse. Say if you want any of them changed. D1–D5 were taken in Phase 0,
@@ -565,6 +590,7 @@ D6–D12 in Phase 1, D13–D23 in Phase 2, D24–D32 in Phase 3 and D33–D38 in
 | D47 | CI also runs on Windows, with Python 3.12 only | PRD §11 asks for Windows on a best-effort basis. One job shows whether it works, without doubling the matrix |
 | D48 | API keys come only from the environment and `.env` files. The OS keyring, which PRD §0 and §8 offer as optional, is not used (Q22) | The owner's answer. It works the same on the Mac and on a headless server, which has no keyring |
 | D49 | Every release has its own version, tagged `vX.Y.Z` on main's merge commit and published as a GitHub release. A fix raises the last number (0.5.1), new features the middle one | Every audit record keeps `tool_version`, so records made by different code must never share a version. A server pins the tag |
+| D50 | The OFAC download is tried up to 3 times, with pauses of 5 and 15 seconds. Each try starts again at the Sanctions List Service, whose S3 link is signed and expires. It may wait 120 seconds for data (`[ofac] read_timeout_seconds`), while API calls keep 30. No network error is ever shown as an empty reason. `status` warns once the list is past half its 48-hour limit, and `docs/scheduling.md` runs `amlcheck sync` every 6 hours | 17 of 26 daily downloads failed on the owner's line (V22), and two failures in a row make every check INCOMPLETE |
 
 ## Open questions
 
