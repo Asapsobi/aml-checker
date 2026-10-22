@@ -28,7 +28,7 @@ from amlcheck.config import EagleVirtual
 from amlcheck.core import rules
 from amlcheck.core.clock import from_timestamp, utcnow
 from amlcheck.core.models import Address, SourceHealth, SourceResult, SourceStatus
-from amlcheck.net import RateLimiter, Sleep, request, retry_after
+from amlcheck.net import RateLimiter, Sleep, describe, request, retry_after
 from amlcheck.storage.cache import ResponseCache
 
 SOURCE = "eagle_virtual"
@@ -260,7 +260,7 @@ class EagleVirtualAdapter:
         except _Refused as e:
             return self._result(SourceStatus.error, str(e))
         except httpx.HTTPError as e:
-            return self._result(SourceStatus.error, f"could not reach Eagle Virtual: {e}")
+            return self._result(SourceStatus.error, f"could not reach Eagle Virtual: {describe(e)}")
 
         body = answer.body
         verdict = body.get("verdict")
@@ -324,7 +324,7 @@ class EagleVirtualAdapter:
                 cacheable=lambda body: body.get("verdict") is not None,
             )
         except (_Refused, httpx.HTTPError) as e:
-            raise LookupFailed(str(e)) from e
+            raise LookupFailed(describe(e)) from e
         verdict = answer.body.get("verdict")
         return str(verdict) if verdict is not None else None
 
@@ -335,7 +335,7 @@ class EagleVirtualAdapter:
                 f"/v1/address/{address.normalized}", cacheable=lambda body: True
             )
         except (_Refused, httpx.HTTPError) as e:
-            return [], f"the full record could not be read: {e}"
+            return [], f"the full record could not be read: {describe(e)}"
         records = answer.body.get("restriction_records") or []
         newest = sorted(records, key=lambda r: r.get("observed_at") or 0, reverse=True)
         note = None
@@ -348,7 +348,7 @@ class EagleVirtualAdapter:
         try:
             response = await self._get("/v1/usage", key)
         except httpx.HTTPError as e:
-            raise _Refused(f"could not reach Eagle Virtual: {e}") from e
+            raise _Refused(f"could not reach Eagle Virtual: {describe(e)}") from e
         if response.status_code != 200:
             raise _Refused(_explain(response))
         usage: dict[str, Any] = response.json()

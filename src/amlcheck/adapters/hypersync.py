@@ -17,7 +17,7 @@ import httpx
 from pydantic import SecretStr
 
 from amlcheck.core.clock import from_timestamp
-from amlcheck.net import RETRY_STATUSES, Sleep, request
+from amlcheck.net import RETRY_STATUSES, Sleep, describe, request
 
 # keccak256("Transfer(address,address,uint256)"), the event of every ERC-20 and BEP-20 transfer.
 TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
@@ -186,7 +186,7 @@ class HyperSync:
                     sleep=self._sleep,
                 )
             except httpx.HTTPError as e:
-                raise HyperSyncError(f"could not reach HyperSync ({type(e).__name__})") from None
+                raise HyperSyncError(f"could not reach HyperSync: {describe(e)}") from None
             self._budget.seen(response.headers)
             if response.status_code != 429:
                 return response

@@ -58,6 +58,9 @@ class Ofac(_Section):
     sdn_url: str = (
         "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML"
     )
+    # How long the 28 MiB download may wait for its next piece of data. API calls keep
+    # [network] timeout_seconds; this file needs longer on a slow line (V22, D50).
+    read_timeout_seconds: float = Field(default=120, gt=0)
 
 
 class EagleVirtual(_Section):

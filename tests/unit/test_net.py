@@ -5,7 +5,7 @@ import httpx
 import pytest
 import respx
 
-from amlcheck.net import RateLimiter, request, retry_after
+from amlcheck.net import RateLimiter, describe, request, retry_after
 
 URL = "https://api.example.test/thing"
 
@@ -94,3 +94,25 @@ async def test_rate_limiter_spaces_requests_evenly() -> None:
     for _ in range(3):
         await limiter.wait()
     assert sleeps.calls == [0.5, 0.5]
+
+
+@pytest.mark.parametrize(
+    ("error", "said"),
+    [
+        (httpx.ReadTimeout(""), "the server stopped sending data (ReadTimeout)"),
+        (
+            httpx.ConnectError("nodename nor servname provided"),
+            "could not connect (ConnectError: nodename nor servname provided)",
+        ),
+        (httpx.ConnectTimeout(""), "the connection timed out (ConnectTimeout)"),
+        (
+            httpx.RemoteProtocolError("peer closed connection"),
+            "the connection broke off (RemoteProtocolError: peer closed connection)",
+        ),
+        (ValueError("bad value"), "bad value"),
+        (TimeoutError(), "TimeoutError"),
+    ],
+)
+def test_an_error_is_never_described_as_nothing(error: BaseException, said: str) -> None:
+    """V22: a timeout's own message is empty, and once left the sync log saying nothing."""
+    assert describe(error) == said

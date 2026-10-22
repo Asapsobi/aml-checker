@@ -40,6 +40,7 @@ from amlcheck.exposure.walker import (
     flags,
     transfer_evidence,
 )
+from amlcheck.net import describe
 from amlcheck.storage.cache import ResponseCache
 
 SOURCE = "exposure"
@@ -125,7 +126,9 @@ class ExposureAdapter:
         try:
             history = await self._reader.read(address.normalized, self._exposure.max_transfers)
         except HISTORY_ERRORS as e:
-            return self._result(SourceStatus.error, f"the transfer history could not be read: {e}")
+            return self._result(
+                SourceStatus.error, f"the transfer history could not be read: {describe(e)}"
+            )
 
         parties = counterparties(address.normalized, history.transfers)
         flagged = flags(self._conn, address.chain, list(parties))

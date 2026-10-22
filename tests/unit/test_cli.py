@@ -30,6 +30,7 @@ from pypdf import PdfReader
 from typer.testing import CliRunner
 
 from amlcheck import __version__, cli, watchlist
+from amlcheck.adapters import ofac
 from amlcheck.cli import app
 from amlcheck.core.clock import utcnow
 from amlcheck.storage import db
@@ -78,11 +79,19 @@ def test_sync_builds_the_list_and_the_index(synced: Services) -> None:
     assert "TRON USDT: 0 new blacklist events" in result.output
 
 
-def test_failed_download_keeps_the_previous_list(network: respx.MockRouter) -> None:
+def test_failed_download_keeps_the_previous_list(
+    network: respx.MockRouter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ofac, "RETRY_WAITS", (0.0, 0.0))  # the pauses themselves: test_ofac.py
     mock_ofac(network, status=500)
     TronGridMock(network, head_time=utcnow())
     result = runner.invoke(app, ["sync"])
     assert result.exit_code == 1
+    message = " ".join(result.output.split())
+    assert (
+        "OFAC SDN: the download failed 3 times, the last time because OFAC answered HTTP 500."
+        in message
+    )
     assert "The previous list stays in use" in result.output
     assert "TRON USDT: 6 new blacklist events" in result.output
 

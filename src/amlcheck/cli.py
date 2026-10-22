@@ -47,7 +47,7 @@ from amlcheck.core.address import AddressError, parse
 from amlcheck.core.clock import iso, utcnow
 from amlcheck.core.models import Address, Chain, CheckResult, SourceHealth, Verdict
 from amlcheck.inputs import amount_hint, client_name
-from amlcheck.net import new_client
+from amlcheck.net import describe, new_client
 from amlcheck.output import (
     STATUS_STYLE,
     VERDICT_STYLE,
@@ -388,9 +388,15 @@ async def _sync_sanctions(
             progress.update(task, completed=done, total=total)
 
         try:
-            snapshot = await ofac.sync(conn, http, config.ofac.sdn_url, advance)
+            snapshot = await ofac.sync(
+                conn,
+                http,
+                config.ofac.sdn_url,
+                advance,
+                read_timeout=config.ofac.read_timeout_seconds,
+            )
         except (ofac.SyncError, httpx.HTTPError) as e:
-            err.print(f"OFAC SDN: {e}. The previous list stays in use.", soft_wrap=True)
+            err.print(f"OFAC SDN: {describe(e)}. The previous list stays in use.", soft_wrap=True)
             return False
     out.print(
         f"OFAC SDN: list of {snapshot.published}, {snapshot.address_count:,} addresses"
@@ -408,7 +414,7 @@ async def _sync_tron(
     try:
         report = await tron.sync_index(conn, grid, config.tron.usdt_contract)
     except (tron.TronGridError, httpx.HTTPError) as e:
-        err.print(f"TRON USDT: {e}", soft_wrap=True)
+        err.print(f"TRON USDT: {describe(e)}", soft_wrap=True)
         return False
     out.print(
         f"TRON USDT: {report.new_events:,} new blacklist events, indexed up to block"

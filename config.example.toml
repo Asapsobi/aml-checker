@@ -78,6 +78,9 @@ min_amount_usdt = 0.0
 [ofac]
 # Official OFAC Sanctions List Service download (see docs/verification.md).
 sdn_url = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML"
+# How long the 28 MiB download may wait for its next piece of data, in seconds. It is tried up to
+# 3 times. API calls keep [network] timeout_seconds (V22, D50).
+read_timeout_seconds = 120
 
 [eagle_virtual]
 base_url = "https://eaglevirtual.com"

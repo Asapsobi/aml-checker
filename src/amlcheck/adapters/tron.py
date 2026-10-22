@@ -22,7 +22,7 @@ from amlcheck.core import rules
 from amlcheck.core.address import tron_abi_word, tron_from_hex
 from amlcheck.core.clock import from_iso, from_timestamp, iso, utcnow
 from amlcheck.core.models import Address, Finding, SourceHealth, SourceResult, SourceStatus
-from amlcheck.net import Sleep, request
+from amlcheck.net import Sleep, describe, request
 
 SOURCE = "tron_usdt"
 LABEL = "TRON USDT"
@@ -355,7 +355,7 @@ class TronUsdtAdapter:
         except ContractDeprecated as e:
             return self._result(SourceStatus.error, str(e))
         except (TronGridError, httpx.HTTPError) as e:
-            refresh_problem = f"the index could not be refreshed: {e}"
+            refresh_problem = f"the index could not be refreshed: {describe(e)}"
         try:
             blacklisted = bool(
                 await self._grid.call(
@@ -363,7 +363,9 @@ class TronUsdtAdapter:
                 )
             )
         except (TronGridError, httpx.HTTPError) as e:
-            return self._result(SourceStatus.error, f"the live isBlackListed check failed: {e}")
+            return self._result(
+                SourceStatus.error, f"the live isBlackListed check failed: {describe(e)}"
+            )
 
         state = index_state(self._conn)
         if state is None:
