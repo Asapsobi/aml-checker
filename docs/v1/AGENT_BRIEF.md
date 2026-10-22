@@ -20,7 +20,7 @@ using only RPC providers and indexers, never own nodes, and never labelling the 
 |---|---|---|
 | 1 | `README.md` | What 0.5.1 does today, every command |
 | 2 | `docs/PRD.md` | The original spec. §0 rules 1–7 still bind you |
-| 3 | `docs/verification.md` | Every external fact checked so far (V1–V16), decisions D1–D49, answers Q1–Q22. **Do not contradict a decision without asking** |
+| 3 | `docs/verification.md` | Every external fact checked so far (V1–V16, V22), decisions D1–D50, answers Q1–Q22. **Do not contradict a decision without asking** |
 | 4 | `docs/v1/PRD.md` | What v1 adds. §0 rules 8–15 |
 | 5 | `docs/v1/METHODOLOGY.md` | The algorithms, thresholds and formulas, exactly |
 | 6 | `docs/v1/ARCHITECTURE.md` | Where new code goes, which existing modules change |

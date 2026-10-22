@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents working in this repository.
 
-**amlcheck** is a local AML screening tool for USDT on TRON and BSC. Version 0.5.1 is in use. The
+**amlcheck** is a local AML screening tool for USDT on TRON and BSC. Version 0.5.2 is in use. The
 current work is **v1.0, counterparty intelligence**, built phase by phase (phases 6–12).
 
 ## Start here
@@ -12,7 +12,7 @@ current work is **v1.0, counterparty intelligence**, built phase by phase (phase
 2. The spec is in [`docs/v1/`](docs/v1/): PRD, methodology, architecture, data model, roadmap,
    acceptance tests.
 3. Every external fact and every decision so far is in
-   [`docs/verification.md`](docs/verification.md). Don't contradict a decision (D1–D49) without
+   [`docs/verification.md`](docs/verification.md). Don't contradict a decision (D1–D50) without
    asking.
 
 ## Commands
